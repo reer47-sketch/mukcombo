@@ -13,6 +13,18 @@ interface Props {
   onCancel: () => void
 }
 
+type MenuNames = Record<string, { ko: string; en: string }>
+type Categories = Record<string, string[]>
+
+interface DraftStore {
+  name: string; nameEn: string; emoji: string
+  address: string; addressEn: string; mapUrl: string
+  categories: Categories
+  prices: Record<string, string>
+  menuNames: MenuNames
+  menuOptions: Record<string, unknown>
+}
+
 const EMPTY_STORE = {
   name: '', nameEn: '', emoji: '🍜',
   address: '', addressEn: '', mapUrl: '',
@@ -23,7 +35,7 @@ const EMPTY_STORE = {
 export default function StoreRegister({ lang, t, F, onSaved, onCancel }: Props) {
   const [step, setStep] = useState<'upload' | 'edit' | 'saving'>('upload')
   const [analyzing, setAnalyzing] = useState(false)
-  const [draft, setDraft] = useState(EMPTY_STORE)
+  const [draft, setDraft] = useState<DraftStore>(EMPTY_STORE)
   const [previewImages, setPreviewImages] = useState<string[]>([])
   const fileRef = useRef<HTMLInputElement>(null)
 
