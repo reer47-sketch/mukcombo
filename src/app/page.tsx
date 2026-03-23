@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { Toaster } from 'react-hot-toast'
 import toast from 'react-hot-toast'
 import { uploadPostImage } from '@/lib/supabase'
-import { T, CAT_ACCENT, type Lang } from '@/lib/i18n'
+import { T, CAT_ACCENT, type Lang, type Translations } from '@/lib/i18n'
 import type { Store, Post, Comment, MainMenuItem } from '@/types'
 import StoreRegister from '@/components/StoreRegister'
 
@@ -295,7 +295,7 @@ export default function Home() {
           )}
 
           {subView === 'register' && (
-            <StoreRegister lang={lang} t={t} F={F}
+            <StoreRegister lang={lang} t={t as Translations} F={F}
               onSaved={(store) => { setStores([...stores, store]); setSubView('list') }}
               onCancel={() => setSubView('list')} />
           )}
