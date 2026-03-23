@@ -301,7 +301,7 @@ export default function Home() {
           )}
 
           {subView === 'edit' && editingStore && (
-            <StoreEditPanel store={editingStore} lang={lang} t={t} F={F}
+            <StoreEditPanel store={editingStore} lang={lang} t={t as Translations} F={F}
               onSave={saveStoreEdit}
               onBack={() => { setSubView('list'); setEditingStore(null) }}
               CAT_ACCENT={CAT_ACCENT} />
@@ -520,7 +520,7 @@ export default function Home() {
 
 // ── 가게 편집 패널 (인라인 컴포넌트) ──────────────────────
 function StoreEditPanel({ store, lang, t, F, onSave, onBack, CAT_ACCENT }: {
-  store: Store, lang: Lang, t: typeof T.ko, F: React.CSSProperties,
+  store: Store, lang: Lang, t: Translations, F: React.CSSProperties,
   onSave: (id: string, name: { ko: string; en: string }, menuNames: Record<string, { ko: string; en: string }>) => void
   onBack: () => void, CAT_ACCENT: Record<string, string>
 }) {
