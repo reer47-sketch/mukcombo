@@ -5,67 +5,68 @@ import toast from 'react-hot-toast'
 import { uploadPostImage } from '@/lib/supabase'
 import { T, CAT_ACCENT, type Lang, type Translations } from '@/lib/i18n'
 import type { Store, Post, Comment, MainMenuItem } from '@/types'
-import StoreRegister from '@/components/StoreRegister'
+import MenuEditor from '@/components/MenuEditor'
 
 // ── 헬퍼 ──────────────────────────────────────────────────
-function dName(store: Store, koKey: string, lang: Lang) {
-  const e = store.menu_names?.[koKey]
+const dName = (store: Store, koKey: string, lang: Lang) => {
+  const e = store?.menu_names?.[koKey]
   if (!e) return koKey
   return lang === 'en' ? (e.en || koKey) : (e.ko || koKey)
 }
 
-function dOptLabel(store: Store, koName: string, key: string, lang: Lang) {
-  const opt = store.menu_options?.[koName]?.find(o => o.key === key)
+const dOptLabel = (store: Store, koName: string, key: string, lang: Lang) => {
+  const opt = store?.menu_options?.[koName]?.find(o => o.key === key)
   return lang === 'en' ? (opt?.labelEn || key) : (opt?.labelKo || key)
 }
 
-function dChoice(store: Store, koName: string, key: string, koValue: string, lang: Lang) {
+const dChoice = (store: Store, koName: string, key: string, koValue: string, lang: Lang) => {
   if (lang === 'ko') return koValue
-  const opt = store.menu_options?.[koName]?.find(o => o.key === key)
-  return opt?.choices.find(c => c.ko === koValue)?.en || koValue
+  const opt = store?.menu_options?.[koName]?.find(o => o.key === key)
+  return opt?.choices.find((c: { ko: string }) => c.ko === koValue)?.en || koValue
 }
 
-function optionBadges(store: Store, koName: string, options: Record<string, string>, lang: Lang) {
-  return Object.entries(options)
-    .filter(([, v]) => v && v !== '넣지않음')
+const optionBadges = (store: Store, koName: string, options: Record<string, string>, lang: Lang) =>
+  Object.entries(options || {})
+    .filter(([, v]) => v && v !== '넣지않음' && v !== 'None')
     .map(([k, v]) => `${dOptLabel(store, koName, k, lang)}: ${dChoice(store, koName, k, v, lang)}`)
-}
 
-function buildAutoText(store: Store, mainItems: MainMenuItem[], sideItems: string[], lang: Lang) {
+const buildAutoText = (store: Store, mainItems: MainMenuItem[], sideItems: string[], lang: Lang, t: Translations) => {
   if (mainItems.length + sideItems.length < 2) return ''
-  const t = T[lang]
   const mains = mainItems.map(m => {
     const b = optionBadges(store, m.name, m.options, lang)
     const nm = dName(store, m.name, lang)
     return b.length > 0 ? `${nm}(${b.join(', ')})` : nm
   })
   const sides = sideItems.map(s => dName(store, s, lang))
-  const prefix = lang === 'ko' ? (t as typeof T.ko).autoPrefix(store as unknown as { name: string }) : (t as typeof T.en).autoPrefix(store as unknown as { name_en: string })
+  const prefix = lang === 'ko'
+    ? (t as typeof T.ko).autoPrefix(store as unknown as { name: string })
+    : (t as typeof T.en).autoPrefix(store as unknown as { name_en: string })
   return `${prefix} ${[...mains, ...sides].join(' + ')} ${t.autoSuffix}`
 }
 
-function defaultOptions(store: Store, menuName: string) {
-  const opts = store.menu_options?.[menuName]
+const defaultOptions = (store: Store, menuName: string) => {
+  const opts = store?.menu_options?.[menuName]
   if (!opts) return {}
-  return Object.fromEntries(opts.map(o => [o.key, o.choices[0]?.ko || '']))
+  return Object.fromEntries(opts.map((o: { key: string; choices: { ko: string }[] }) => [o.key, o.choices[0]?.ko || '']))
 }
 
-function timeAgo(dateStr: string, lang: Lang) {
-  const diff = Date.now() - new Date(dateStr).getTime()
-  const m = Math.floor(diff / 60000)
-  if (m < 1) return lang === 'ko' ? '방금 전' : 'Just now'
-  if (m < 60) return lang === 'ko' ? `${m}분 전` : `${m}m ago`
-  const h = Math.floor(m / 60)
-  if (h < 24) return lang === 'ko' ? `${h}시간 전` : `${h}hr ago`
-  const d = Math.floor(h / 24)
-  return lang === 'ko' ? `${d}일 전` : `${d}d ago`
+const timeAgo = (dateStr: string, lang: Lang) => {
+  if (!dateStr) return ''
+  try {
+    const diff = Date.now() - new Date(dateStr).getTime()
+    const m = Math.floor(diff / 60000)
+    if (m < 1) return lang === 'ko' ? '방금 전' : 'Just now'
+    if (m < 60) return lang === 'ko' ? `${m}분 전` : `${m}m ago`
+    const h = Math.floor(m / 60)
+    if (h < 24) return lang === 'ko' ? `${h}시간 전` : `${h}hr ago`
+    return lang === 'ko' ? `${Math.floor(h / 24)}일 전` : `${Math.floor(h / 24)}d ago`
+  } catch { return dateStr }
 }
 
-// ── 댓글 섹션 ────────────────────────────────────────────
-function CommentSection({ postId, comments, lang, F }: {
-  postId: string, comments: Comment[], lang: Lang, F: React.CSSProperties
+// ── 댓글 ──────────────────────────────────────────────────
+function CommentSection({ postId, comments, lang, F, t }: {
+  postId: string; comments: Comment[]; lang: Lang; F: React.CSSProperties; t: Translations
 }) {
-  const t = T[lang]
   const [open, setOpen] = useState(false)
   const [text, setText] = useState('')
   const [list, setList] = useState(comments)
@@ -115,7 +116,7 @@ function CommentSection({ postId, comments, lang, F }: {
   )
 }
 
-// ── 메인 ─────────────────────────────────────────────────
+// ── 메인 ──────────────────────────────────────────────────
 export default function Home() {
   const [lang, setLang] = useState<Lang>('ko')
   const t = T[lang]
@@ -125,14 +126,13 @@ export default function Home() {
   const [posts, setPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<'feed' | 'stores'>('feed')
-  const [subView, setSubView] = useState<'list' | 'register' | 'edit'>('list')
-  const [filterStoreId, setFilterStoreId] = useState<string | null>(null)
+  const [subView, setSubView] = useState<'list' | 'edit'>('list')
   const [editingStore, setEditingStore] = useState<Store | null>(null)
+  const [filterStoreId, setFilterStoreId] = useState<string | null>(null)
   const [showPostForm, setShowPostForm] = useState(false)
 
-  // post form state
   const [selectedStore, setSelectedStore] = useState<Store | null>(null)
-  const [activeCategory, setActiveCategory] = useState('🍜 메인메뉴')
+  const [activeCategory, setActiveCategory] = useState('')
   const [mainItems, setMainItems] = useState<MainMenuItem[]>([])
   const [sideItems, setSideItems] = useState<string[]>([])
   const [optionPanelFor, setOptionPanelFor] = useState<string | null>(null)
@@ -144,32 +144,37 @@ export default function Home() {
 
   const loadData = useCallback(async () => {
     setLoading(true)
-    const [sRes, pRes] = await Promise.all([fetch('/api/stores'), fetch('/api/posts')])
-    const [s, p] = await Promise.all([sRes.json(), pRes.json()])
-    setStores(Array.isArray(s) ? s : [])
-    setPosts(Array.isArray(p) ? p : [])
-    if (Array.isArray(s) && s.length > 0) setSelectedStore(s[0])
+    try {
+      const [sRes, pRes] = await Promise.all([fetch('/api/stores'), fetch('/api/posts')])
+      const [s, p] = await Promise.all([sRes.json(), pRes.json()])
+      const storeList = Array.isArray(s) ? s : []
+      const postList = Array.isArray(p) ? p : []
+      setStores(storeList)
+      setPosts(postList)
+      if (storeList.length > 0) {
+        setSelectedStore(storeList[0])
+        setActiveCategory(Object.keys(storeList[0].categories || {})[0] || '')
+      }
+    } catch (e) { console.error(e) }
     setLoading(false)
   }, [])
 
   useEffect(() => { loadData() }, [loadData])
 
   const filteredPosts = filterStoreId ? posts.filter(p => p.store_id === filterStoreId) : posts
-  const storeOf = (id: string) => stores.find(s => s.id === id) || stores[0]
+  const storeOf = (id: string) => stores.find(s => s.id === id)
   const storeName = (s: Store) => lang === 'en' ? s.name_en : s.name
   const storeAddr = (s: Store) => lang === 'en' ? s.address_en : s.address
 
   const toggleLike = async (post: Post) => {
-    const delta = post.likes !== undefined ? (post.likes > 0 ? -1 : 1) : 1
-    // optimistic UI
-    setPosts(posts.map(p => p.id === post.id ? { ...p, likes: Math.max(0, p.likes + delta) } : p))
-    await fetch('/api/posts', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: post.id, delta }) })
+    setPosts(posts.map(p => p.id === post.id ? { ...p, likes: p.likes + 1 } : p))
+    await fetch('/api/posts', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: post.id, delta: 1 }) })
   }
 
   const toggleMain = (name: string) => {
     const exists = mainItems.find(m => m.name === name)
     if (exists) { setMainItems(mainItems.filter(m => m.name !== name)); if (optionPanelFor === name) setOptionPanelFor(null) }
-    else { const item = { name, options: defaultOptions(selectedStore!, name) }; setMainItems([...mainItems, item]); if (selectedStore?.menu_options?.[name]) setOptionPanelFor(name) }
+    else { setMainItems([...mainItems, { name, options: defaultOptions(selectedStore!, name) }]); if (selectedStore?.menu_options?.[name]) setOptionPanelFor(name) }
   }
   const toggleSide = (name: string) => setSideItems(prev => prev.includes(name) ? prev.filter(i => i !== name) : [...prev, name])
   const setOption = (menuName: string, key: string, value: string) =>
@@ -177,8 +182,7 @@ export default function Home() {
 
   const handlePhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return
-    setPhotoFile(file)
-    setPhoto(URL.createObjectURL(file))
+    setPhotoFile(file); setPhoto(URL.createObjectURL(file))
   }
 
   const handleSubmit = async () => {
@@ -188,8 +192,7 @@ export default function Home() {
       let photoUrl: string | null = null
       if (photoFile) photoUrl = await uploadPostImage(photoFile)
       const res = await fetch('/api/posts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ storeId: selectedStore.id, userName: lang === 'ko' ? '나' : 'Me', avatar: '😊', items: mainItems, sideItems, review, reviewLang: lang, photoUrl }),
       })
       const newPost = await res.json()
@@ -201,20 +204,23 @@ export default function Home() {
     finally { setSubmitting(false) }
   }
 
-  const saveStoreEdit = async (id: string, name: { ko: string; en: string }, menuNames: Record<string, { ko: string; en: string }>) => {
-    const res = await fetch('/api/stores', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, name: name.ko, nameEn: name.en, menuNames }),
-    })
-    const updated = await res.json()
-    setStores(stores.map(s => s.id === id ? updated : s))
-    toast.success(lang === 'ko' ? '저장됐어요 ✓' : 'Saved ✓')
+  const saveStore = async (updated: Store) => {
+    try {
+      const res = await fetch('/api/stores', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: updated.id, name: updated.name, nameEn: updated.name_en, menuNames: updated.menu_names, categories: updated.categories, prices: updated.prices, menuOptions: updated.menu_options }),
+      })
+      const saved = await res.json()
+      setStores(stores.map(s => s.id === saved.id ? saved : s))
+      if (selectedStore?.id === saved.id) setSelectedStore(saved)
+      setSubView('list'); setEditingStore(null)
+      toast.success(lang === 'ko' ? '저장됐어요 ✓' : 'Saved ✓')
+    } catch { toast.error(t.toastError) }
   }
 
-  const isMainCat = activeCategory === '🍜 메인메뉴'
+  const isMainCat = activeCategory === '🍜 메인'
   const totalSelected = mainItems.length + sideItems.length
-  const autoText = selectedStore ? buildAutoText(selectedStore, mainItems, sideItems, lang) : ''
+  const autoText = selectedStore ? buildAutoText(selectedStore, mainItems, sideItems, lang, t) : ''
 
   if (loading) return (
     <div style={{ minHeight: '100vh', background: '#080808', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#c8a96e', fontSize: 14, ...F }}>
@@ -233,12 +239,15 @@ export default function Home() {
             <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: '-1.5px', lineHeight: 1 }}>
               <span style={{ color: '#c8a96e' }}>먹</span><span style={{ color: '#f0ece4' }}>+콤보</span>
             </div>
-            <div style={{ fontSize: 9, color: '#444', letterSpacing: 3, marginTop: 3, fontWeight: 500, fontFamily: "'Inter',sans-serif" }}>MUK-COMBO</div>
+            <div style={{ fontSize: 9, color: '#444', letterSpacing: 3, marginTop: 3, fontFamily: "'Inter',sans-serif" }}>MUK-COMBO</div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button onClick={() => setLang(l => l === 'ko' ? 'en' : 'ko')} style={{ background: '#141414', border: '1px solid #2a2a2a', borderRadius: 20, padding: '5px 2px', cursor: 'pointer', display: 'flex', alignItems: 'center', width: 56, position: 'relative' }}>
+            <button onClick={() => setLang(l => l === 'ko' ? 'en' : 'ko')}
+              style={{ background: '#141414', border: '1px solid #2a2a2a', borderRadius: 20, padding: '5px 2px', cursor: 'pointer', display: 'flex', alignItems: 'center', width: 56, position: 'relative' }}>
               <div style={{ position: 'absolute', left: lang === 'ko' ? 2 : 28, width: 26, height: 22, background: '#c8a96e', borderRadius: 16, transition: 'left 0.2s' }} />
-              {(['ko', 'en'] as Lang[]).map(l => <span key={l} style={{ position: 'relative', zIndex: 1, width: 28, textAlign: 'center', fontSize: 11, fontWeight: 700, color: lang === l ? '#080808' : '#555', fontFamily: "'Inter',sans-serif" }}>{l.toUpperCase()}</span>)}
+              {(['ko', 'en'] as Lang[]).map(l => (
+                <span key={l} style={{ position: 'relative', zIndex: 1, width: 28, textAlign: 'center', fontSize: 11, fontWeight: 700, color: lang === l ? '#080808' : '#555', fontFamily: "'Inter',sans-serif" }}>{l.toUpperCase()}</span>
+              ))}
             </button>
             <button onClick={() => { if (showPostForm) { setShowPostForm(false) } else { setMainItems([]); setSideItems([]); setReview(''); setPhoto(null); setPhotoFile(null); setOptionPanelFor(null); setShowPostForm(true); setTab('feed') } }}
               style={{ background: showPostForm ? '#c8a96e' : 'transparent', border: '1.5px solid #c8a96e', color: showPostForm ? '#080808' : '#c8a96e', borderRadius: 20, padding: '7px 14px', fontSize: 12, cursor: 'pointer', fontWeight: 700, ...F }}>
@@ -257,17 +266,12 @@ export default function Home() {
         )}
       </div>
 
-      {/* ── STORES TAB ── */}
+      {/* ── STORES ── */}
       {tab === 'stores' && !showPostForm && (
-        <>
+        <div style={{ padding: 20 }}>
           {subView === 'list' && (
-            <div style={{ padding: 20 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <div style={{ fontSize: 11, color: '#555', letterSpacing: 2, fontWeight: 700 }}>{t.storesTitle.toUpperCase()}</div>
-                <button onClick={() => setSubView('register')} style={{ background: '#c8a96e', border: 'none', color: '#080808', borderRadius: 16, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', ...F }}>
-                  {t.registerStore}
-                </button>
-              </div>
+            <>
+              <div style={{ fontSize: 11, color: '#555', letterSpacing: 2, fontWeight: 700, marginBottom: 16 }}>{t.storesTitle.toUpperCase()}</div>
               {stores.map(s => (
                 <div key={s.id} style={{ background: '#0d0d0d', border: '1px solid #1c1c1c', borderRadius: 14, padding: '16px 18px', marginBottom: 12 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer' }} onClick={() => { setFilterStoreId(s.id); setTab('feed') }}>
@@ -280,33 +284,28 @@ export default function Home() {
                     <div style={{ color: '#444', fontSize: 18 }}>›</div>
                   </div>
                   <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #1a1a1a', display: 'flex', justifyContent: 'flex-end' }}>
-                    <button onClick={() => { setEditingStore(s); setSubView('edit') }} style={{ background: '#141414', border: '1px solid #2a2a2a', color: '#888', borderRadius: 8, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer', ...F }}>
-                      ⚙ {t.editTab}
+                    <button onClick={() => { setEditingStore(s); setSubView('edit') }}
+                      style={{ background: '#141414', border: '1px solid #2a2a2a', color: '#888', borderRadius: 8, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer', ...F }}>
+                      {t.storeEdit}
                     </button>
                   </div>
                 </div>
               ))}
-              {stores.length === 0 && (
-                <div style={{ border: '1.5px dashed #1e1e1e', borderRadius: 14, padding: 40, textAlign: 'center', color: '#444', fontSize: 13 }}>
-                  {lang === 'ko' ? '등록된 가게가 없어요\n위의 + 버튼으로 추가해보세요' : 'No stores yet.\nClick + to add one'}
-                </div>
-              )}
+              <div style={{ border: '1.5px dashed #1e1e1e', borderRadius: 14, padding: 20, textAlign: 'center', color: '#333', fontSize: 13 }}>
+                {t.storeComingSoon}
+              </div>
+            </>
+          )}
+          {subView === 'edit' && editingStore && (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, paddingBottom: 16, borderBottom: '1px solid #1a1a1a' }}>
+                <button onClick={() => { setSubView('list'); setEditingStore(null) }} style={{ background: 'none', border: 'none', color: '#c8a96e', fontSize: 13, fontWeight: 700, cursor: 'pointer', ...F }}>{t.backBtn}</button>
+                <span style={{ fontSize: 14, fontWeight: 700, color: '#888' }}>{storeName(editingStore)}</span>
+              </div>
+              <MenuEditor store={editingStore} lang={lang} t={t as Translations} F={F} onSave={saveStore} />
             </div>
           )}
-
-          {subView === 'register' && (
-            <StoreRegister lang={lang} t={t as Translations} F={F}
-              onSaved={(store) => { setStores([...stores, store]); setSubView('list') }}
-              onCancel={() => setSubView('list')} />
-          )}
-
-          {subView === 'edit' && editingStore && (
-            <StoreEditPanel store={editingStore} lang={lang} t={t as Translations} F={F}
-              onSave={saveStoreEdit}
-              onBack={() => { setSubView('list'); setEditingStore(null) }}
-              CAT_ACCENT={CAT_ACCENT} />
-          )}
-        </>
+        </div>
       )}
 
       {/* ── FEED ── */}
@@ -324,7 +323,7 @@ export default function Home() {
             if (!store) return null
             return (
               <div key={post.id} style={{ borderBottom: '1px solid #141414', paddingBottom: 20 }}>
-                {post.photo_url && <div style={{ width: '100%', aspectRatio: '4/3', overflow: 'hidden' }}><img src={post.photo_url} alt="combo" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} /></div>}
+                {post.photo_url && <div style={{ width: '100%', aspectRatio: '4/3', overflow: 'hidden' }}><img src={post.photo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} /></div>}
                 <div style={{ padding: '16px 20px 0' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
                     <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#161616', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>{post.avatar}</div>
@@ -337,13 +336,13 @@ export default function Home() {
                   <div style={{ background: '#0d0d0d', border: '1px solid #1e1e1e', borderRadius: 12, padding: '14px 16px', marginBottom: 12 }}>
                     <div style={{ fontSize: 10, color: '#c8a96e', letterSpacing: 2, fontWeight: 700, marginBottom: 12 }}>{t.comboLabel}</div>
                     {post.items?.map((m, i) => (
-                      <div key={i} style={{ marginBottom: 10 }}>
+                      <div key={i} style={{ marginBottom: 8 }}>
                         <span style={{ background: '#181818', border: '1px solid #c8a96e33', borderRadius: 6, padding: '4px 11px', fontSize: 13, fontWeight: 700, color: '#c8a96e' }}>{dName(store, m.name, lang)}</span>
-                        {(() => { const b = optionBadges(store, m.name, m.options || {}, lang); return b.length > 0 ? <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6, marginLeft: 4 }}>{b.map((badge, bi) => <span key={bi} style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 4, padding: '2px 8px', fontSize: 11, color: '#aaa' }}>{badge}</span>)}</div> : null })()}
+                        {(() => { const b = optionBadges(store, m.name, m.options || {}, lang); return b.length > 0 ? <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 5, marginLeft: 4 }}>{b.map((badge, bi) => <span key={bi} style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 4, padding: '2px 8px', fontSize: 11, color: '#aaa' }}>{badge}</span>)}</div> : null })()}
                       </div>
                     ))}
                     {post.side_items?.length > 0 && (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6, paddingTop: 10, borderTop: '1px solid #181818' }}>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8, paddingTop: 8, borderTop: '1px solid #181818' }}>
                         {post.side_items.map((s, i) => <span key={i} style={{ background: '#181818', border: '1px solid #282828', borderRadius: 6, padding: '4px 11px', fontSize: 12, fontWeight: 500, color: '#ccc' }}>{dName(store, s, lang)}</span>)}
                       </div>
                     )}
@@ -358,7 +357,7 @@ export default function Home() {
                   <button onClick={() => toggleLike(post)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, color: '#484848', fontSize: 13, fontWeight: 700, padding: 0, ...F }}>
                     <span style={{ fontSize: 16 }}>🤍</span>{post.likes}
                   </button>
-                  <CommentSection postId={post.id} comments={post.comments || []} lang={lang} F={F} />
+                  <CommentSection postId={post.id} comments={post.comments || []} lang={lang} F={F} t={t} />
                 </div>
               </div>
             )
@@ -370,19 +369,17 @@ export default function Home() {
       {showPostForm && (
         <div style={{ padding: '20px 20px 100px' }}>
           <div style={{ fontSize: 15, fontWeight: 700, color: '#c8a96e', marginBottom: 20 }}>{t.formTitle}</div>
-
-          {/* 가게 선택 (여러 가게일 때) */}
           {stores.length > 1 && (
             <div style={{ marginBottom: 16 }}>
               <div style={{ fontSize: 11, color: '#555', letterSpacing: 2, fontWeight: 700, marginBottom: 10 }}>STORE</div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {stores.map(s => (
-                  <button key={s.id} onClick={() => { setSelectedStore(s); setMainItems([]); setSideItems([]) }} style={{ background: selectedStore?.id === s.id ? '#c8a96e' : '#141414', color: selectedStore?.id === s.id ? '#080808' : '#777', border: 'none', borderRadius: 10, padding: '8px 14px', fontSize: 13, cursor: 'pointer', fontWeight: selectedStore?.id === s.id ? 700 : 400, ...F }}>{s.emoji} {storeName(s)}</button>
+                  <button key={s.id} onClick={() => { setSelectedStore(s); setMainItems([]); setSideItems([]); setActiveCategory(Object.keys(s.categories || {})[0] || '') }}
+                    style={{ background: selectedStore?.id === s.id ? '#c8a96e' : '#141414', color: selectedStore?.id === s.id ? '#080808' : '#777', border: 'none', borderRadius: 10, padding: '8px 14px', fontSize: 13, cursor: 'pointer', fontWeight: selectedStore?.id === s.id ? 700 : 400, ...F }}>{s.emoji} {storeName(s)}</button>
                 ))}
               </div>
             </div>
           )}
-
           {selectedStore && (
             <div style={{ background: '#0d0d0d', border: '1px solid #1e1e1e', borderRadius: 12, padding: '12px 16px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 12 }}>
               <span style={{ fontSize: 22 }}>{selectedStore.emoji}</span>
@@ -393,12 +390,11 @@ export default function Home() {
             </div>
           )}
 
-          {/* 사진 */}
           <div style={{ fontSize: 11, color: '#555', letterSpacing: 2, fontWeight: 700, marginBottom: 10 }}>{t.step1}</div>
           <input ref={fileRef} type="file" accept="image/*" onChange={handlePhoto} style={{ display: 'none' }} />
           {photo ? (
             <div style={{ position: 'relative', marginBottom: 20, borderRadius: 12, overflow: 'hidden' }}>
-              <img src={photo} alt="preview" style={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover', display: 'block' }} />
+              <img src={photo} alt="" style={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover', display: 'block' }} />
               <button onClick={() => { setPhoto(null); setPhotoFile(null) }} style={{ position: 'absolute', top: 10, right: 10, background: 'rgba(0,0,0,0.65)', border: 'none', color: '#f0ece4', borderRadius: '50%', width: 30, height: 30, cursor: 'pointer', fontSize: 14 }}>✕</button>
             </div>
           ) : (
@@ -409,15 +405,15 @@ export default function Home() {
 
           {selectedStore && (
             <>
-              {/* 카테고리 */}
               <div style={{ fontSize: 11, color: '#555', letterSpacing: 2, fontWeight: 700, marginBottom: 10 }}>{t.step2}</div>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
                 {Object.keys(selectedStore.categories || {}).map(cat => (
-                  <button key={cat} onClick={() => setActiveCategory(cat)} style={{ background: activeCategory === cat ? (CAT_ACCENT[cat] || '#c8a96e') : '#141414', color: activeCategory === cat ? '#080808' : '#666', border: 'none', borderRadius: 16, padding: '6px 14px', fontSize: 12, cursor: 'pointer', fontWeight: activeCategory === cat ? 700 : 400, ...F }}>{t.cats[cat as keyof typeof t.cats] || cat}</button>
+                  <button key={cat} onClick={() => setActiveCategory(cat)} style={{ background: activeCategory === cat ? (CAT_ACCENT[cat] || '#c8a96e') : '#141414', color: activeCategory === cat ? '#080808' : '#666', border: 'none', borderRadius: 16, padding: '6px 14px', fontSize: 12, cursor: 'pointer', fontWeight: activeCategory === cat ? 700 : 400, ...F }}>
+                    {(t.cats as Record<string, string>)[cat] || cat}
+                  </button>
                 ))}
               </div>
 
-              {/* 메뉴 선택 */}
               <div style={{ fontSize: 11, color: '#555', letterSpacing: 2, fontWeight: 700, marginBottom: 10 }}>{t.step3}</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginBottom: 10 }}>
                 {(selectedStore.categories[activeCategory] || []).map((item: string) => {
@@ -428,7 +424,8 @@ export default function Home() {
                   const price = selectedStore.prices?.[item]
                   const hasOpts = isMainCat && selectedStore.menu_options?.[item]
                   return (
-                    <button key={item} onClick={() => isMainCat ? toggleMain(item) : toggleSide(item)} style={{ background: sel ? '#0e1a0e' : '#141414', color: sel ? accent : '#888', border: `1.5px solid ${sel ? accent : '#222'}`, borderRadius: 8, padding: '6px 13px', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, fontWeight: sel ? 700 : 400, ...F }}>
+                    <button key={item} onClick={() => isMainCat ? toggleMain(item) : toggleSide(item)}
+                      style={{ background: sel ? '#0e1a0e' : '#141414', color: sel ? accent : '#888', border: `1.5px solid ${sel ? accent : '#222'}`, borderRadius: 8, padding: '6px 13px', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, fontWeight: sel ? 700 : 400, ...F }}>
                       {sel && <span style={{ fontSize: 10 }}>✓</span>}
                       {dName(selectedStore, item, lang)}
                       {hasOpts && <span style={{ fontSize: 10, color: sel ? accent : '#555' }}>⚙</span>}
@@ -438,12 +435,12 @@ export default function Home() {
                 })}
               </div>
 
-              {/* 옵션 패널 */}
               {isMainCat && mainItems.length > 0 && (
                 <div style={{ marginBottom: 18 }}>
                   <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
                     {mainItems.map(m => (
-                      <button key={m.name} onClick={() => setOptionPanelFor(optionPanelFor === m.name ? null : m.name)} style={{ background: optionPanelFor === m.name ? '#c8a96e' : '#181818', color: optionPanelFor === m.name ? '#080808' : '#c8a96e', border: '1px solid #c8a96e33', borderRadius: 8, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', ...F }}>
+                      <button key={m.name} onClick={() => setOptionPanelFor(optionPanelFor === m.name ? null : m.name)}
+                        style={{ background: optionPanelFor === m.name ? '#c8a96e' : '#181818', color: optionPanelFor === m.name ? '#080808' : '#c8a96e', border: '1px solid #c8a96e33', borderRadius: 8, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', ...F }}>
                         {dName(selectedStore, m.name, lang)} ⚙
                       </button>
                     ))}
@@ -455,7 +452,7 @@ export default function Home() {
                     return (
                       <div style={{ background: '#0d0d0d', border: '1px solid #1e1e1e', borderRadius: 12, padding: '14px 16px' }}>
                         <div style={{ fontSize: 12, fontWeight: 700, color: '#c8a96e', marginBottom: 12 }}>{t.optionLabel(dName(selectedStore, optionPanelFor, lang))}</div>
-                        {opts.map(opt => (
+                        {opts.map((opt: { key: string; labelKo: string; labelEn: string; choices: { ko: string; en: string; extraPrice?: string }[] }) => (
                           <div key={opt.key} style={{ marginBottom: 12 }}>
                             <div style={{ fontSize: 11, color: '#888', fontWeight: 500, marginBottom: 7 }}>{lang === 'en' ? opt.labelEn : opt.labelKo}</div>
                             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -463,9 +460,11 @@ export default function Home() {
                                 const active = m.options[opt.key] === choice.ko
                                 const isNoneC = choice.ko === '넣지않음'
                                 return (
-                                  <button key={choice.ko} onClick={() => setOption(optionPanelFor, opt.key, choice.ko)} style={{ background: active ? (isNoneC ? '#1a1a1a' : '#1a2a1a') : '#141414', color: active ? (isNoneC ? '#888' : '#6fcf97') : '#666', border: `1.5px solid ${active ? (isNoneC ? '#333' : '#6fcf97') : '#222'}`, borderRadius: 8, padding: '5px 12px', fontSize: 12, cursor: 'pointer', fontWeight: active ? 700 : 400, ...F }}>
+                                  <button key={choice.ko} onClick={() => setOption(optionPanelFor, opt.key, choice.ko)}
+                                    style={{ background: active ? (isNoneC ? '#1a1a1a' : '#1a2a1a') : '#141414', color: active ? (isNoneC ? '#888' : '#6fcf97') : '#666', border: `1.5px solid ${active ? (isNoneC ? '#333' : '#6fcf97') : '#222'}`, borderRadius: 8, padding: '5px 12px', fontSize: 12, cursor: 'pointer', fontWeight: active ? 700 : 400, ...F }}>
                                     {active && !isNoneC && <span style={{ fontSize: 9, marginRight: 3 }}>✓</span>}
                                     {lang === 'en' ? choice.en : choice.ko}
+                                    {choice.extraPrice ? <span style={{ fontSize: 10, color: '#6fcf97', marginLeft: 3 }}>(+{choice.extraPrice}원)</span> : null}
                                   </button>
                                 )
                               })}
@@ -478,7 +477,6 @@ export default function Home() {
                 </div>
               )}
 
-              {/* 선택 요약 */}
               {totalSelected > 0 && (
                 <div style={{ marginBottom: 18 }}>
                   <div style={{ fontSize: 11, color: '#555', letterSpacing: 2, fontWeight: 700, marginBottom: 8 }}>{t.selectedLabel(totalSelected)}</div>
@@ -489,7 +487,6 @@ export default function Home() {
                 </div>
               )}
 
-              {/* 자동 문구 */}
               {autoText && (
                 <div style={{ background: '#0d0d0d', border: '1px solid #1e1e1e', borderRadius: 12, padding: '12px 16px', marginBottom: 20 }}>
                   <div style={{ fontSize: 10, color: '#c8a96e', letterSpacing: 2, fontWeight: 700, marginBottom: 6 }}>{t.autoLabel}</div>
@@ -497,7 +494,6 @@ export default function Home() {
                 </div>
               )}
 
-              {/* 리뷰 */}
               {totalSelected >= 2 && (
                 <div style={{ marginBottom: 28 }}>
                   <div style={{ fontSize: 11, color: '#555', letterSpacing: 2, fontWeight: 700, marginBottom: 10 }}>{t.step4(review.length)}</div>
@@ -509,87 +505,12 @@ export default function Home() {
             </>
           )}
 
-          <button onClick={handleSubmit} disabled={totalSelected < 2 || !review.trim() || submitting} style={{ width: '100%', padding: 14, background: totalSelected >= 2 && review.trim() && !submitting ? '#c8a96e' : '#161616', color: totalSelected >= 2 && review.trim() && !submitting ? '#080808' : '#383838', border: 'none', borderRadius: 10, fontSize: 15, fontWeight: 700, letterSpacing: 0.5, cursor: totalSelected >= 2 && review.trim() && !submitting ? 'pointer' : 'not-allowed', ...F }}>
-            {submitting ? '업로드 중...' : t.submitBtn}
+          <button onClick={handleSubmit} disabled={totalSelected < 2 || !review.trim() || submitting}
+            style={{ width: '100%', padding: 14, background: totalSelected >= 2 && review.trim() && !submitting ? '#c8a96e' : '#161616', color: totalSelected >= 2 && review.trim() && !submitting ? '#080808' : '#383838', border: 'none', borderRadius: 10, fontSize: 15, fontWeight: 700, cursor: totalSelected >= 2 && review.trim() && !submitting ? 'pointer' : 'not-allowed', ...F }}>
+            {submitting ? (lang === 'ko' ? '업로드 중...' : 'Uploading...') : t.submitBtn}
           </button>
         </div>
       )}
-    </div>
-  )
-}
-
-// ── 가게 편집 패널 (인라인 컴포넌트) ──────────────────────
-function StoreEditPanel({ store, lang, t, F, onSave, onBack, CAT_ACCENT }: {
-  store: Store, lang: Lang, t: Translations, F: React.CSSProperties,
-  onSave: (id: string, name: { ko: string; en: string }, menuNames: Record<string, { ko: string; en: string }>) => void
-  onBack: () => void, CAT_ACCENT: Record<string, string>
-}) {
-  const [draft, setDraft] = useState(() => JSON.parse(JSON.stringify(store.menu_names || {})))
-  const [storeName, setStoreName] = useState({ ko: store.name, en: store.name_en })
-  const [saved, setSaved] = useState(false)
-  const [section, setSection] = useState<'store' | 'menu'>('store')
-
-  const handleSave = () => {
-    onSave(store.id, storeName, draft)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
-  }
-
-  return (
-    <div style={{ padding: '20px 20px 100px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-        <button onClick={onBack} style={{ background: 'none', border: 'none', color: '#c8a96e', fontSize: 13, fontWeight: 700, cursor: 'pointer', ...F }}>{t.backBtn}</button>
-        <span style={{ fontSize: 14, fontWeight: 700, color: '#888', ...F }}>{lang === 'ko' ? store.name : store.name_en}</span>
-      </div>
-      <div style={{ display: 'flex', gap: 6, marginBottom: 20 }}>
-        {(['store', 'menu'] as const).map(k => (
-          <button key={k} onClick={() => setSection(k)} style={{ background: section === k ? '#c8a96e' : '#141414', color: section === k ? '#080808' : '#666', border: 'none', borderRadius: 16, padding: '7px 18px', fontSize: 12, fontWeight: 700, cursor: 'pointer', ...F }}>
-            {k === 'store' ? (lang === 'ko' ? '가게명' : 'Store Name') : (lang === 'ko' ? '메뉴명' : 'Menu Names')}
-          </button>
-        ))}
-      </div>
-      {section === 'store' && (
-        <div>
-          {[['ko', `🇰🇷 ${t.koName}`], ['en', `🇺🇸 ${t.enName}`]].map(([lk, label]) => (
-            <div key={lk} style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 11, color: '#888', marginBottom: 6, ...F }}>{label}</div>
-              <input value={storeName[lk as 'ko' | 'en']} onChange={e => setStoreName({ ...storeName, [lk]: e.target.value })}
-                style={{ width: '100%', background: '#0d0d0d', border: '1.5px solid #2a2a2a', borderRadius: 8, padding: '10px 14px', color: '#f0ece4', fontSize: 14, outline: 'none', boxSizing: 'border-box', fontFamily: lk === 'ko' ? "'Noto Sans KR',sans-serif" : "'Inter',sans-serif" }} />
-            </div>
-          ))}
-        </div>
-      )}
-      {section === 'menu' && (
-        <div>
-          <p style={{ fontSize: 11, color: '#484848', marginBottom: 18, ...F }}>{t.editMenuSub}</p>
-          {Object.entries(store.categories || {}).map(([cat, items]) => (
-            (items as string[]).length > 0 && (
-              <div key={cat} style={{ marginBottom: 24 }}>
-                <div style={{ fontSize: 11, color: CAT_ACCENT[cat] || '#c8a96e', fontWeight: 700, letterSpacing: 1, marginBottom: 10, ...F }}>{t.cats[cat as keyof typeof t.cats] || cat}</div>
-                {(items as string[]).map(koKey => (
-                  <div key={koKey} style={{ background: '#0d0d0d', border: '1px solid #1a1a1a', borderRadius: 10, padding: '10px 14px', marginBottom: 8 }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                      <div>
-                        <div style={{ fontSize: 10, color: '#666', marginBottom: 4, ...F }}>🇰🇷 {t.koName}</div>
-                        <input value={draft[koKey]?.ko || ''} onChange={e => setDraft({ ...draft, [koKey]: { ...(draft[koKey] || {}), ko: e.target.value } })}
-                          style={{ width: '100%', background: '#141414', border: '1px solid #222', borderRadius: 6, padding: '6px 10px', color: '#f0ece4', fontSize: 12, outline: 'none', boxSizing: 'border-box', fontFamily: "'Noto Sans KR',sans-serif" }} />
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 10, color: '#666', marginBottom: 4, ...F }}>🇺🇸 {t.enName}</div>
-                        <input value={draft[koKey]?.en || ''} onChange={e => setDraft({ ...draft, [koKey]: { ...(draft[koKey] || {}), en: e.target.value } })}
-                          style={{ width: '100%', background: '#141414', border: '1.5px solid #2a2a2a', borderRadius: 6, padding: '6px 10px', color: '#c8a96e', fontSize: 12, outline: 'none', boxSizing: 'border-box', fontFamily: "'Inter',sans-serif" }} />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )
-          ))}
-        </div>
-      )}
-      <button onClick={handleSave} style={{ position: 'sticky', bottom: 20, width: '100%', padding: 14, background: saved ? '#2a4a2a' : '#c8a96e', color: saved ? '#6fcf97' : '#080808', border: 'none', borderRadius: 10, fontSize: 15, fontWeight: 700, cursor: 'pointer', transition: 'background 0.3s', ...F }}>
-        {saved ? (lang === 'ko' ? '✓ 저장됨!' : '✓ Saved!') : t.saveBtn}
-      </button>
     </div>
   )
 }
