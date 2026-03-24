@@ -20,7 +20,7 @@ const inputSt: React.CSSProperties = {
   width: '100%', boxSizing: 'border-box',
 }
 
-interface Choice { id: string; ko: string; en: string; extraPrice: string }
+interface Choice { id: string; ko: string; en: string; extraPrice?: string }
 interface Option { id: string; key: string; labelKo: string; labelEn: string; choices: Choice[] }
 interface MenuDraft { id: string; nameKo: string; nameEn: string; price: string; options: Option[] }
 interface CatDraft { id: string; nameKo: string; nameEn: string; menus: MenuDraft[] }

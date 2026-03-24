@@ -6,6 +6,7 @@ export interface MenuNameEntry {
 export interface OptionChoice {
   ko: string
   en: string
+  extraPrice?: string
 }
 
 export interface MenuOption {
