@@ -36,7 +36,7 @@ export default function MenuEditor({ store, lang, t, F, onSave }: Props) {
         options: (s.menu_options?.[mn] || []).map(opt => ({
           id: uid(), key: opt.key,
           labelKo: opt.labelKo, labelEn: opt.labelEn,
-          choices: opt.choices.map(c => ({ id: uid(), ko: c.ko, en: c.en, extraPrice: c.extraPrice || '' })),
+          choices: opt.choices.map(c => ({ id: uid(), ko: c.ko, en: c.en, extraPrice: c.extraPrice ?? '' })),
         })),
       })),
     }))
@@ -70,7 +70,7 @@ export default function MenuEditor({ store, lang, t, F, onSave }: Props) {
           menu_options[m.nameKo] = m.options.map(opt => ({
             key: opt.key || opt.id,
             labelKo: opt.labelKo, labelEn: opt.labelEn,
-            choices: opt.choices.map(c => ({ ko: c.ko, en: c.en, extraPrice: c.extraPrice })),
+            choices: opt.choices.map(c => ({ ko: c.ko, en: c.en, extraPrice: c.extraPrice ?? '' })),
           }))
         }
       })
