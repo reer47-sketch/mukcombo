@@ -119,7 +119,8 @@ function CommentSection({ postId, comments, lang, F, t }: {
 // ── 메인 ──────────────────────────────────────────────────
 export default function Home() {
   const [lang, setLang] = useState<Lang>('ko')
-  const t = T[lang]
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const t = T[lang] as any
   const F: React.CSSProperties = { fontFamily: lang === 'en' ? "'Inter',sans-serif" : "'Noto Sans KR',sans-serif" }
 
   const [stores, setStores] = useState<Store[]>([])
