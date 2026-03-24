@@ -6,6 +6,7 @@ import { uploadPostImage } from '@/lib/supabase'
 import { T, CAT_ACCENT, type Lang, type Translations } from '@/lib/i18n'
 import type { Store, Post, Comment, MainMenuItem } from '@/types'
 import MenuEditor from '@/components/MenuEditor'
+import NicknamePopup from '@/components/NicknamePopup'
 
 // ── 헬퍼 ──────────────────────────────────────────────────
 const dName = (store: Store, koKey: string, lang: Lang) => {
@@ -13,24 +14,21 @@ const dName = (store: Store, koKey: string, lang: Lang) => {
   if (!e) return koKey
   return lang === 'en' ? (e.en || koKey) : (e.ko || koKey)
 }
-
 const dOptLabel = (store: Store, koName: string, key: string, lang: Lang) => {
   const opt = store?.menu_options?.[koName]?.find(o => o.key === key)
   return lang === 'en' ? (opt?.labelEn || key) : (opt?.labelKo || key)
 }
-
 const dChoice = (store: Store, koName: string, key: string, koValue: string, lang: Lang) => {
   if (lang === 'ko') return koValue
   const opt = store?.menu_options?.[koName]?.find(o => o.key === key)
   return opt?.choices.find((c: { ko: string }) => c.ko === koValue)?.en || koValue
 }
-
 const optionBadges = (store: Store, koName: string, options: Record<string, string>, lang: Lang) =>
   Object.entries(options || {})
     .filter(([, v]) => v && v !== '넣지않음' && v !== 'None')
     .map(([k, v]) => `${dOptLabel(store, koName, k, lang)}: ${dChoice(store, koName, k, v, lang)}`)
 
-const buildAutoText = (store: Store, mainItems: MainMenuItem[], sideItems: string[], lang: Lang, t: Translations) => {
+const buildAutoText = (store: Store, mainItems: MainMenuItem[], sideItems: string[], lang: Lang, t: any) => {
   if (mainItems.length + sideItems.length < 2) return ''
   const mains = mainItems.map(m => {
     const b = optionBadges(store, m.name, m.options, lang)
@@ -38,18 +36,14 @@ const buildAutoText = (store: Store, mainItems: MainMenuItem[], sideItems: strin
     return b.length > 0 ? `${nm}(${b.join(', ')})` : nm
   })
   const sides = sideItems.map(s => dName(store, s, lang))
-  const prefix = lang === 'ko'
-   ? `${(store as unknown as { name: string }).name}에서`
-    : `At ${(store as unknown as { name_en: string }).name_en},`
+  const prefix = lang === 'ko' ? `${store.name}에서` : `At ${store.name_en},`
   return `${prefix} ${[...mains, ...sides].join(' + ')} ${t.autoSuffix}`
 }
-
 const defaultOptions = (store: Store, menuName: string) => {
   const opts = store?.menu_options?.[menuName]
   if (!opts) return {}
   return Object.fromEntries(opts.map((o: { key: string; choices: { ko: string }[] }) => [o.key, o.choices[0]?.ko || '']))
 }
-
 const timeAgo = (dateStr: string, lang: Lang) => {
   if (!dateStr) return ''
   try {
@@ -64,8 +58,8 @@ const timeAgo = (dateStr: string, lang: Lang) => {
 }
 
 // ── 댓글 ──────────────────────────────────────────────────
-function CommentSection({ postId, comments, lang, F, t }: {
-  postId: string; comments: Comment[]; lang: Lang; F: React.CSSProperties; t: Translations
+function CommentSection({ postId, comments, lang, F, t, currentUser }: {
+  postId: string; comments: Comment[]; lang: Lang; F: React.CSSProperties; t: any; currentUser: { id: string; nickname: string } | null
 }) {
   const [open, setOpen] = useState(false)
   const [text, setText] = useState('')
@@ -73,11 +67,11 @@ function CommentSection({ postId, comments, lang, F, t }: {
 
   const submit = async () => {
     if (!text.trim()) return
+    const userName = currentUser?.nickname || (lang === 'ko' ? '익명' : 'Anonymous')
     try {
       const res = await fetch('/api/comments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ postId, userName: lang === 'ko' ? '나' : 'Me', avatar: '😊', text: text.trim(), textLang: lang }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ postId, userName, avatar: '😊', text: text.trim(), textLang: lang }),
       })
       const c = await res.json()
       setList([...list, c])
@@ -119,9 +113,12 @@ function CommentSection({ postId, comments, lang, F, t }: {
 // ── 메인 ──────────────────────────────────────────────────
 export default function Home() {
   const [lang, setLang] = useState<Lang>('ko')
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const t = T[lang] as any
   const F: React.CSSProperties = { fontFamily: lang === 'en' ? "'Inter',sans-serif" : "'Noto Sans KR',sans-serif" }
+
+  // 사용자
+  const [currentUser, setCurrentUser] = useState<{ id: string; nickname: string } | null>(null)
+  const [showNicknamePopup, setShowNicknamePopup] = useState(false)
 
   const [stores, setStores] = useState<Store[]>([])
   const [posts, setPosts] = useState<Post[]>([])
@@ -142,6 +139,16 @@ export default function Home() {
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+
+  // 닉네임 로컬스토리지 체크
+  useEffect(() => {
+    const stored = localStorage.getItem('mukcombo_user')
+    if (stored) {
+      try { setCurrentUser(JSON.parse(stored)) } catch { setShowNicknamePopup(true) }
+    } else {
+      setShowNicknamePopup(true)
+    }
+  }, [])
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -172,6 +179,16 @@ export default function Home() {
     await fetch('/api/posts', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: post.id, delta: 1 }) })
   }
 
+  const deletePost = async (postId: string) => {
+    if (!confirm(lang === 'ko' ? '이 게시글을 삭제할까요?' : 'Delete this post?')) return
+    const res = await fetch('/api/posts', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: postId, userId: currentUser?.id }) })
+    const json = await res.json()
+    if (json.success) {
+      setPosts(posts.filter(p => p.id !== postId))
+      toast.success(lang === 'ko' ? '삭제됐어요' : 'Deleted')
+    } else toast.error(json.error || t.toastError)
+  }
+
   const toggleMain = (name: string) => {
     const exists = mainItems.find(m => m.name === name)
     if (exists) { setMainItems(mainItems.filter(m => m.name !== name)); if (optionPanelFor === name) setOptionPanelFor(null) }
@@ -188,13 +205,14 @@ export default function Home() {
 
   const handleSubmit = async () => {
     if (!selectedStore || mainItems.length + sideItems.length < 2 || !review.trim()) return
+    if (!currentUser) { setShowNicknamePopup(true); return }
     setSubmitting(true)
     try {
       let photoUrl: string | null = null
       if (photoFile) photoUrl = await uploadPostImage(photoFile)
       const res = await fetch('/api/posts', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ storeId: selectedStore.id, userName: lang === 'ko' ? '나' : 'Me', avatar: '😊', items: mainItems, sideItems, review, reviewLang: lang, photoUrl }),
+        body: JSON.stringify({ storeId: selectedStore.id, userName: currentUser.nickname, userId: currentUser.id, avatar: '😊', items: mainItems, sideItems, review, reviewLang: lang, photoUrl }),
       })
       const newPost = await res.json()
       setPosts([{ ...newPost, comments: [] }, ...posts])
@@ -233,6 +251,14 @@ export default function Home() {
     <div style={{ minHeight: '100vh', background: '#080808', color: '#f0ece4', maxWidth: 430, margin: '0 auto', ...F }}>
       <Toaster position="top-center" toastOptions={{ style: { background: '#1a1a1a', color: '#f0ece4', border: '1px solid #2a2a2a' } }} />
 
+      {/* 닉네임 팝업 */}
+      {showNicknamePopup && (
+        <NicknamePopup lang={lang} onConfirm={(nickname, userId) => {
+          setCurrentUser({ id: userId, nickname })
+          setShowNicknamePopup(false)
+        }} />
+      )}
+
       {/* ── HEADER ── */}
       <div style={{ background: '#080808', borderBottom: '1px solid #161616', position: 'sticky', top: 0, zIndex: 100, padding: '14px 20px 0' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
@@ -243,6 +269,13 @@ export default function Home() {
             <div style={{ fontSize: 9, color: '#444', letterSpacing: 3, marginTop: 3, fontFamily: "'Inter',sans-serif" }}>MUK-COMBO</div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {/* 닉네임 표시 */}
+            {currentUser && (
+              <div onClick={() => setShowNicknamePopup(true)} style={{ fontSize: 11, color: '#888', cursor: 'pointer', background: '#141414', border: '1px solid #222', borderRadius: 16, padding: '5px 12px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                😊 {currentUser.nickname}
+              </div>
+            )}
+            {/* Lang 토글 */}
             <button onClick={() => setLang(l => l === 'ko' ? 'en' : 'ko')}
               style={{ background: '#141414', border: '1px solid #2a2a2a', borderRadius: 20, padding: '5px 2px', cursor: 'pointer', display: 'flex', alignItems: 'center', width: 56, position: 'relative' }}>
               <div style={{ position: 'absolute', left: lang === 'ko' ? 2 : 28, width: 26, height: 22, background: '#c8a96e', borderRadius: 16, transition: 'left 0.2s' }} />
@@ -322,6 +355,7 @@ export default function Home() {
           {filteredPosts.map(post => {
             const store = storeOf(post.store_id)
             if (!store) return null
+            const isMyPost = currentUser && post.user_id === currentUser.id
             return (
               <div key={post.id} style={{ borderBottom: '1px solid #141414', paddingBottom: 20 }}>
                 {post.photo_url && <div style={{ width: '100%', aspectRatio: '4/3', overflow: 'hidden' }}><img src={post.photo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} /></div>}
@@ -332,7 +366,14 @@ export default function Home() {
                       <div style={{ fontSize: 13, fontWeight: 700 }}>{post.user_name}</div>
                       <div style={{ fontSize: 11, color: '#444' }}>{timeAgo(post.created_at, lang)}</div>
                     </div>
-                    <div style={{ background: '#141414', borderRadius: 8, padding: '4px 10px', fontSize: 11, color: '#c8a96e', fontWeight: 500 }}>{store.emoji} {storeName(store)}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ background: '#141414', borderRadius: 8, padding: '4px 10px', fontSize: 11, color: '#c8a96e', fontWeight: 500 }}>{store.emoji} {storeName(store)}</div>
+                      {isMyPost && (
+                        <button onClick={() => deletePost(post.id)} style={{ background: '#2a1a1a', border: 'none', color: '#e05a5a', borderRadius: 8, padding: '4px 10px', fontSize: 11, cursor: 'pointer', ...F }}>
+                          🗑
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <div style={{ background: '#0d0d0d', border: '1px solid #1e1e1e', borderRadius: 12, padding: '14px 16px', marginBottom: 12 }}>
                     <div style={{ fontSize: 10, color: '#c8a96e', letterSpacing: 2, fontWeight: 700, marginBottom: 12 }}>{t.comboLabel}</div>
@@ -358,7 +399,7 @@ export default function Home() {
                   <button onClick={() => toggleLike(post)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, color: '#484848', fontSize: 13, fontWeight: 700, padding: 0, ...F }}>
                     <span style={{ fontSize: 16 }}>🤍</span>{post.likes}
                   </button>
-                  <CommentSection postId={post.id} comments={post.comments || []} lang={lang} F={F} t={t} />
+                  <CommentSection postId={post.id} comments={post.comments || []} lang={lang} F={F} t={t} currentUser={currentUser} />
                 </div>
               </div>
             )
@@ -390,7 +431,6 @@ export default function Home() {
               </div>
             </div>
           )}
-
           <div style={{ fontSize: 11, color: '#555', letterSpacing: 2, fontWeight: 700, marginBottom: 10 }}>{t.step1}</div>
           <input ref={fileRef} type="file" accept="image/*" onChange={handlePhoto} style={{ display: 'none' }} />
           {photo ? (
@@ -403,7 +443,6 @@ export default function Home() {
               <span style={{ fontSize: 28 }}>📷</span><span style={{ fontWeight: 500 }}>{t.photoAdd}</span><span style={{ fontSize: 11, color: '#333' }}>{t.photoSub}</span>
             </button>
           )}
-
           {selectedStore && (
             <>
               <div style={{ fontSize: 11, color: '#555', letterSpacing: 2, fontWeight: 700, marginBottom: 10 }}>{t.step2}</div>
@@ -414,7 +453,6 @@ export default function Home() {
                   </button>
                 ))}
               </div>
-
               <div style={{ fontSize: 11, color: '#555', letterSpacing: 2, fontWeight: 700, marginBottom: 10 }}>{t.step3}</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginBottom: 10 }}>
                 {(selectedStore.categories[activeCategory] || []).map((item: string) => {
@@ -435,7 +473,6 @@ export default function Home() {
                   )
                 })}
               </div>
-
               {isMainCat && mainItems.length > 0 && (
                 <div style={{ marginBottom: 18 }}>
                   <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
@@ -477,7 +514,6 @@ export default function Home() {
                   })()}
                 </div>
               )}
-
               {totalSelected > 0 && (
                 <div style={{ marginBottom: 18 }}>
                   <div style={{ fontSize: 11, color: '#555', letterSpacing: 2, fontWeight: 700, marginBottom: 8 }}>{t.selectedLabel(totalSelected)}</div>
@@ -487,14 +523,12 @@ export default function Home() {
                   </div>
                 </div>
               )}
-
               {autoText && (
                 <div style={{ background: '#0d0d0d', border: '1px solid #1e1e1e', borderRadius: 12, padding: '12px 16px', marginBottom: 20 }}>
                   <div style={{ fontSize: 10, color: '#c8a96e', letterSpacing: 2, fontWeight: 700, marginBottom: 6 }}>{t.autoLabel}</div>
                   <div style={{ fontSize: 12, color: '#666', lineHeight: 1.6 }}>{autoText}</div>
                 </div>
               )}
-
               {totalSelected >= 2 && (
                 <div style={{ marginBottom: 28 }}>
                   <div style={{ fontSize: 11, color: '#555', letterSpacing: 2, fontWeight: 700, marginBottom: 10 }}>{t.step4(review.length)}</div>
@@ -505,7 +539,6 @@ export default function Home() {
               )}
             </>
           )}
-
           <button onClick={handleSubmit} disabled={totalSelected < 2 || !review.trim() || submitting}
             style={{ width: '100%', padding: 14, background: totalSelected >= 2 && review.trim() && !submitting ? '#c8a96e' : '#161616', color: totalSelected >= 2 && review.trim() && !submitting ? '#080808' : '#383838', border: 'none', borderRadius: 10, fontSize: 15, fontWeight: 700, cursor: totalSelected >= 2 && review.trim() && !submitting ? 'pointer' : 'not-allowed', ...F }}>
             {submitting ? (lang === 'ko' ? '업로드 중...' : 'Uploading...') : t.submitBtn}
