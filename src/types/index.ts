@@ -50,13 +50,13 @@ export interface Post {
   id: string
   store_id: string
   user_name: string
+  user_id: string | null
   avatar: string
   items: MainMenuItem[]
   side_items: string[]
   review: string
   review_lang: string
-  pphoto_url: string | null
-  user_id: string | null
+  photo_url: string | null
   likes: number
   created_at: string
   comments: Comment[]
