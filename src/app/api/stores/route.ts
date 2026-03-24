@@ -33,8 +33,12 @@ export async function PATCH(req: NextRequest) {
   const { data, error } = await supabase
     .from('stores')
     .update({
-      name: updates.name, name_en: updates.nameEn,
+      name: updates.name,
+      name_en: updates.nameEn,
+      categories: updates.categories,
+      prices: updates.prices,
       menu_names: updates.menuNames,
+      menu_options: updates.menuOptions,
     })
     .eq('id', id).select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
