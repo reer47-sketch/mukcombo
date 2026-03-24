@@ -55,7 +55,8 @@ export interface Post {
   side_items: string[]
   review: string
   review_lang: string
-  photo_url: string | null
+  pphoto_url: string | null
+  user_id: string | null
   likes: number
   created_at: string
   comments: Comment[]
