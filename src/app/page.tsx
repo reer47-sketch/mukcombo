@@ -39,8 +39,8 @@ const buildAutoText = (store: Store, mainItems: MainMenuItem[], sideItems: strin
   })
   const sides = sideItems.map(s => dName(store, s, lang))
   const prefix = lang === 'ko'
-    ? (t as typeof T.ko).autoPrefix(store as unknown as { name: string })
-    : (t as typeof T.en).autoPrefix(store as unknown as { name_en: string })
+   ? `${(store as unknown as { name: string }).name}에서`
+    : `At ${(store as unknown as { name_en: string }).name_en},`
   return `${prefix} ${[...mains, ...sides].join(' + ')} ${t.autoSuffix}`
 }
 
