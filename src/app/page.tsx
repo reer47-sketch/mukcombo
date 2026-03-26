@@ -351,7 +351,38 @@ export default function Home() {
               <button key={s.id} onClick={() => setFilterStoreId(filterStoreId === s.id ? null : s.id)} style={{ flexShrink: 0, background: filterStoreId === s.id ? '#c8a96e' : '#141414', color: filterStoreId === s.id ? '#080808' : '#666', border: 'none', borderRadius: 16, padding: '5px 14px', fontSize: 12, cursor: 'pointer', fontWeight: 700, ...F }}>{s.emoji} {storeName(s)}</button>
             ))}
           </div>
-          {filteredPosts.length === 0 && <div style={{ textAlign: 'center', color: '#444', padding: 60, fontSize: 14 }}>{t.noPost}</div>}
+       {filteredPosts.length === 0 && <div style={{ textAlign: 'center', color: '#444', padding: 60, fontSize: 14 }}>{t.noPost}</div>}
+
+          {/* TOP 3 고정 피드 */}
+          {filteredPosts.length >= 3 && (() => {
+            const top3 = [...filteredPosts].sort((a, b) => b.likes - a.likes).slice(0, 3)
+            return (
+              <div style={{ padding: '12px 20px', borderBottom: '1px solid #141414' }}>
+                <div style={{ fontSize: 10, color: '#c8a96e', fontWeight: 700, letterSpacing: 2, marginBottom: 10 }}>✦ 인기 조합 TOP 3</div>
+                <div style={{ display: 'flex', gap: 8, overflowX: 'auto', scrollbarWidth: 'none' }}>
+                  {top3.map((post, idx) => {
+                    const store = storeOf(post.store_id)
+                    if (!store) return null
+                    const medals = ['🥇', '🥈', '🥉']
+                    return (
+                      <div key={post.id} style={{ flexShrink: 0, width: 160, background: '#0d0d0d', border: '1px solid #1e1e1e', borderRadius: 12, padding: '12px', position: 'relative', overflow: 'hidden' }}>
+                        <div style={{ position: 'absolute', top: 8, right: 8, fontSize: 18 }}>{medals[idx]}</div>
+                        <div style={{ fontSize: 11, color: '#c8a96e', fontWeight: 700, marginBottom: 6 }}>{store.emoji} {storeName(store)}</div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
+                          {[...(post.items || []).map(m => dName(store, m.name, lang)), ...(post.side_items || []).map(s => dName(store, s, lang))].map((name, i) => (
+                            <span key={i} style={{ fontSize: 10, background: '#181818', border: '1px solid #282828', borderRadius: 4, padding: '2px 6px', color: '#ccc' }}>{name}</span>
+                          ))}
+                        </div>
+                        <div style={{ fontSize: 11, color: '#888', lineHeight: 1.4, marginBottom: 8, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const }}>{post.review}</div>
+                        <div style={{ fontSize: 11, color: '#e05a5a', fontWeight: 700 }}>❤️ {post.likes}</div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })()}
+
           {filteredPosts.map(post => {
             const store = storeOf(post.store_id)
             if (!store) return null
