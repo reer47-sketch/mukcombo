@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
     }
 
     // 모든 카테고리를 가진 가게만 (교집합)
-    const intersection = [...storeIdSets[0]].filter(id =>
+    const intersection = Array.from(storeIdSets[0]).filter(id =>
       storeIdSets.every(set => set.has(id))
     )
 
