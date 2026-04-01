@@ -2,7 +2,6 @@
 import { useState, useEffect } from 'react'
 import type { Store } from '@/types'
 import type { Lang, Translations } from '@/lib/i18n'
-import { CAT_ACCENT } from '@/lib/i18n'
 
 interface Props {
   store: Store
@@ -24,7 +23,7 @@ interface Choice { id: string; ko: string; en: string; extraPrice: string }
 interface Option { id: string; key: string; labelKo: string; labelEn: string; choices: Choice[] }
 interface MenuDraft { id: string; nameKo: string; nameEn: string; price: string; options: Option[] }
 interface CatDraft { id: string; nameKo: string; nameEn: string; menus: MenuDraft[] }
-interface FoodCategory { id: string; name_ko: string; name_en: string; emoji: string }
+interface FoodCategory { id: string; name_ko: string; name_en: string }
 
 export default function MenuEditor({ store, lang, t, F, onSave }: Props) {
   const buildCats = (s: Store): CatDraft[] =>
@@ -47,28 +46,26 @@ export default function MenuEditor({ store, lang, t, F, onSave }: Props) {
   const [preview, setPreview] = useState(false)
   const [saved, setSaved] = useState(false)
   const [foodCategories, setFoodCategories] = useState<FoodCategory[]>([])
-  const [menuFoodCats, setMenuFoodCats] = useState<Record<string, string>>({})
+  // 가게 카테고리명 → 범용 카테고리 id[] 매핑
+  const [catMap, setCatMap] = useState<Record<string, string[]>>({})
 
-  // 범용 카테고리 목록 로드
   useEffect(() => {
-    fetch('/api/food-categories')
-      .then(r => r.json())
-      .then(data => { if (Array.isArray(data)) setFoodCategories(data) })
+    fetch('/api/food-categories').then(r => r.json()).then(data => {
+      if (Array.isArray(data)) setFoodCategories(data)
+    })
   }, [])
 
-  // 기존 menu_items 에서 현재 카테고리 설정 로드
   useEffect(() => {
-    fetch(`/api/menu-items?store_id=${store.id}`)
-      .then(r => r.json())
-      .then(data => {
-        if (Array.isArray(data)) {
-          const map: Record<string, string> = {}
-          data.forEach((item: { name_ko: string; food_category_id: string }) => {
-            if (item.food_category_id) map[item.name_ko] = item.food_category_id
-          })
-          setMenuFoodCats(map)
-        }
-      })
+    fetch(`/api/store-category-map?store_id=${store.id}`).then(r => r.json()).then(data => {
+      if (Array.isArray(data)) {
+        const map: Record<string, string[]> = {}
+        data.forEach((d: { store_category: string; food_category_id: string }) => {
+          if (!map[d.store_category]) map[d.store_category] = []
+          map[d.store_category].push(d.food_category_id)
+        })
+        setCatMap(map)
+      }
+    })
   }, [store.id])
 
   const updateCat = (idx: number, updated: CatDraft) => {
@@ -76,6 +73,16 @@ export default function MenuEditor({ store, lang, t, F, onSave }: Props) {
   }
   const deleteCat = (idx: number) => setCats(cats.filter((_, i) => i !== idx))
   const addCat = () => setCats([...cats, { id: uid(), nameKo: '', nameEn: '', menus: [{ id: uid(), nameKo: '', nameEn: '', price: '', options: [] }] }])
+
+  const toggleFoodCat = (storeCatName: string, foodCatId: string) => {
+    setCatMap(prev => {
+      const current = prev[storeCatName] || []
+      const next = current.includes(foodCatId)
+        ? current.filter(id => id !== foodCatId)
+        : [...current, foodCatId]
+      return { ...prev, [storeCatName]: next }
+    })
+  }
 
   const handleSave = async () => {
     const categories: Record<string, string[]> = {}
@@ -104,25 +111,17 @@ export default function MenuEditor({ store, lang, t, F, onSave }: Props) {
     // 1. 가게 정보 저장
     onSave({ ...store, name: storeName.ko, name_en: storeName.en, categories, prices, menu_names, menu_options })
 
-    // 2. menu_items 테이블 업데이트 (기존 삭제 후 재등록)
-    try {
-      await fetch(`/api/menu-items?store_id=${store.id}`, { method: 'DELETE' })
-      const menuItemsPayload = Object.entries(menuFoodCats)
-        .filter(([nameKo, catId]) => catId && menu_names[nameKo])
-        .map(([nameKo, foodCategoryId]) => ({
-          storeId: store.id,
-          nameKo,
-          nameEn: menu_names[nameKo]?.en || '',
-          price: prices[nameKo] || '',
-          foodCategoryId,
-        }))
-      if (menuItemsPayload.length > 0) {
-        await fetch('/api/menu-items', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(menuItemsPayload),
-        })
-      }
-    } catch (e) { console.error('menu_items 저장 오류:', e) }
+    // 2. store_category_map 저장
+    const mappings: { storeCategory: string; foodCategoryId: string }[] = []
+    Object.entries(catMap).forEach(([storeCat, foodCatIds]) => {
+      foodCatIds.forEach(fcId => {
+        if (fcId) mappings.push({ storeCategory: storeCat, foodCategoryId: fcId })
+      })
+    })
+    await fetch('/api/store-category-map', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ storeId: store.id, mappings }),
+    })
 
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
@@ -159,14 +158,13 @@ export default function MenuEditor({ store, lang, t, F, onSave }: Props) {
         </div>
       </div>
 
-      {/* 편집 모드 */}
       {!preview && (
         <>
           <div style={{ fontSize: 10, color: '#555', letterSpacing: 2, fontWeight: 700, marginBottom: 14, ...F }}>{t.menuSetup.toUpperCase()}</div>
           {cats.map((cat, ci) => (
             <div key={cat.id} style={{ marginBottom: 20 }}>
               {/* 카테고리 헤더 */}
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
                 <div style={{ width: 4, height: 36, background: '#c8a96e', borderRadius: 2, flexShrink: 0 }} />
                 <input value={cat.nameKo} onChange={e => updateCat(ci, { ...cat, nameKo: e.target.value })}
                   placeholder='카테고리명 (예: 라멘류)' style={{ flex: 2, ...inputSt, fontWeight: 900, fontSize: 14, ...F }} />
@@ -176,13 +174,32 @@ export default function MenuEditor({ store, lang, t, F, onSave }: Props) {
                   style={{ width: 28, height: 28, borderRadius: '50%', border: 'none', background: cats.length === 1 ? '#141414' : '#2a1a1a', color: cats.length === 1 ? '#333' : '#e05a5a', cursor: cats.length === 1 ? 'default' : 'pointer', fontSize: 13, flexShrink: 0 }}>✕</button>
               </div>
 
+              {/* 🔍 먹검색 카테고리 연결 — 카테고리 단위 */}
+              {cat.nameKo && foodCategories.length > 0 && (
+                <div style={{ background: '#0d0d0d', border: '1px solid #1a1a1a', borderRadius: 10, padding: '10px 12px', marginBottom: 8 }}>
+                  <div style={{ fontSize: 10, color: '#888', fontWeight: 700, marginBottom: 8, ...F }}>
+                    🔍 먹검색 연결 — <span style={{ color: '#c8a96e' }}>{cat.nameKo}</span> 카테고리는 어떤 음식인가요?
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {foodCategories.map(fc => {
+                      const sel = (catMap[cat.nameKo] || []).includes(fc.id)
+                      return (
+                        <button key={fc.id} onClick={() => toggleFoodCat(cat.nameKo, fc.id)}
+                          style={{ background: sel ? '#1a2a1a' : '#141414', border: `1px solid ${sel ? '#6fcf97' : '#222'}`, color: sel ? '#6fcf97' : '#666', borderRadius: 16, padding: '4px 12px', fontSize: 11, cursor: 'pointer', fontWeight: sel ? 700 : 400, ...F }}>
+                          {sel ? '✓ ' : ''}{fcName(fc)}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* 메뉴들 */}
               {cat.menus.map((menu, mi) => {
                 const updateMenu = (updated: MenuDraft) => { const m = [...cat.menus]; m[mi] = updated; updateCat(ci, { ...cat, menus: m }) }
                 const deleteMenu = () => { if (cat.menus.length === 1) return; updateCat(ci, { ...cat, menus: cat.menus.filter((_, i) => i !== mi) }) }
                 return (
-                  <div key={menu.id} style={{ background: '#0d0d0d', border: '1px solid #1e1e1e', borderRadius: 12, marginBottom: 8, overflow: 'hidden' }}>
-                    {/* 메뉴 기본 정보 */}
+                  <div key={menu.id} style={{ background: '#0d0d0d', border: '1px solid #1e1e1e', borderRadius: 12, marginBottom: 6, overflow: 'hidden' }}>
                     <div style={{ display: 'flex', gap: 7, alignItems: 'center', padding: '10px 12px' }}>
                       <input value={menu.nameKo} onChange={e => updateMenu({ ...menu, nameKo: e.target.value })}
                         placeholder='메뉴명' style={{ flex: 2.5, ...inputSt, fontWeight: 700, ...F }} />
@@ -196,24 +213,6 @@ export default function MenuEditor({ store, lang, t, F, onSave }: Props) {
                       <button onClick={deleteMenu} disabled={cat.menus.length === 1}
                         style={{ width: 26, height: 26, borderRadius: '50%', border: 'none', background: cat.menus.length === 1 ? '#141414' : '#2a1a1a', color: cat.menus.length === 1 ? '#333' : '#e05a5a', cursor: cat.menus.length === 1 ? 'default' : 'pointer', fontSize: 12, flexShrink: 0 }}>✕</button>
                     </div>
-
-                    {/* 🔍 먹검색 범용 카테고리 선택 */}
-                    {menu.nameKo && foodCategories.length > 0 && (
-                      <div style={{ padding: '0 12px 10px', display: 'flex', alignItems: 'center', gap: 8, borderTop: '1px solid #1a1a1a', paddingTop: 8 }}>
-                        <span style={{ fontSize: 10, color: '#888', flexShrink: 0, ...F }}>🔍 먹검색</span>
-                        <select
-                          value={menuFoodCats[menu.nameKo] || ''}
-                          onChange={e => setMenuFoodCats(prev => ({ ...prev, [menu.nameKo]: e.target.value }))}
-                          style={{ flex: 1, background: '#141414', border: `1px solid ${menuFoodCats[menu.nameKo] ? '#6fcf97' : '#2a2a2a'}`, borderRadius: 6, padding: '5px 8px', color: menuFoodCats[menu.nameKo] ? '#6fcf97' : '#555', fontSize: 11, outline: 'none', ...F }}>
-                          <option value="">카테고리 선택 안 함</option>
-                          {foodCategories.map(fc => (
-                            <option key={fc.id} value={fc.id}>{fc.emoji} {fcName(fc)}</option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-
-                    {/* 옵션들 */}
                     {menu.options.length > 0 && (
                       <div style={{ padding: '0 12px 8px' }}>
                         {menu.options.map((opt, oi) => {
@@ -223,7 +222,7 @@ export default function MenuEditor({ store, lang, t, F, onSave }: Props) {
                               <div style={{ display: 'flex', gap: 6, marginBottom: 8, alignItems: 'center' }}>
                                 <div style={{ width: 3, height: 28, background: '#c8a96e', borderRadius: 2, flexShrink: 0 }} />
                                 <input value={opt.labelKo} onChange={e => updateOpt({ ...opt, labelKo: e.target.value })}
-                                  placeholder='옵션명 (예: 마늘 양 조절)' style={{ flex: 1, ...inputSt, fontWeight: 700, fontSize: 12, ...F }} />
+                                  placeholder='옵션명' style={{ flex: 1, ...inputSt, fontWeight: 700, fontSize: 12, ...F }} />
                                 <input value={opt.labelEn} onChange={e => updateOpt({ ...opt, labelEn: e.target.value })}
                                   placeholder='Option (EN)' style={{ flex: 1, ...inputSt, color: '#c8a96e', fontSize: 12, ...F }} />
                                 <button onClick={() => updateMenu({ ...menu, options: menu.options.filter((_, i) => i !== oi) })}
@@ -261,8 +260,7 @@ export default function MenuEditor({ store, lang, t, F, onSave }: Props) {
                       </div>
                     )}
                     <div style={{ padding: '0 12px 10px' }}>
-                      <button
-                        onClick={() => updateMenu({ ...menu, options: [...menu.options, { id: uid(), key: uid(), labelKo: '', labelEn: '', choices: [{ id: uid(), ko: '', en: '', extraPrice: '' }, { id: uid(), ko: '', en: '', extraPrice: '' }] }] })}
+                      <button onClick={() => updateMenu({ ...menu, options: [...menu.options, { id: uid(), key: uid(), labelKo: '', labelEn: '', choices: [{ id: uid(), ko: '', en: '', extraPrice: '' }, { id: uid(), ko: '', en: '', extraPrice: '' }] }] })}
                         style={{ width: '100%', background: 'none', border: '1px dashed #222', borderRadius: 7, padding: '6px', color: '#484848', fontSize: 11, cursor: 'pointer', ...F }}>
                         {t.addOption}
                       </button>
@@ -289,37 +287,27 @@ export default function MenuEditor({ store, lang, t, F, onSave }: Props) {
           <div style={{ fontSize: 10, color: '#555', letterSpacing: 2, fontWeight: 700, marginBottom: 16, ...F }}>PREVIEW</div>
           {cats.map(cat => (
             <div key={cat.id} style={{ marginBottom: 24 }}>
-              <div style={{ fontSize: 13, fontWeight: 900, color: '#c8a96e', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ fontSize: 13, fontWeight: 900, color: '#c8a96e', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <div style={{ width: 3, height: 14, background: '#c8a96e', borderRadius: 2 }} />
-                {cat.nameKo} {cat.nameEn && <span style={{ fontSize: 10, color: '#555', fontWeight: 400 }}>/ {cat.nameEn}</span>}
+                {cat.nameKo}
+                {(catMap[cat.nameKo] || []).length > 0 && (
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    {(catMap[cat.nameKo] || []).map(fcId => {
+                      const fc = foodCategories.find(f => f.id === fcId)
+                      return fc ? <span key={fcId} style={{ fontSize: 9, background: '#1a2a1a', color: '#6fcf97', borderRadius: 4, padding: '2px 6px', fontWeight: 400, ...F }}>{fcName(fc)}</span> : null
+                    })}
+                  </div>
+                )}
               </div>
               {cat.menus.filter(m => m.nameKo).map(menu => (
-                <div key={menu.id} style={{ background: '#0d0d0d', border: '1px solid #1e1e1e', borderRadius: 10, padding: '10px 14px', marginBottom: 7 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: menu.options.length > 0 ? 8 : 0 }}>
+                <div key={menu.id} style={{ background: '#0d0d0d', border: '1px solid #1e1e1e', borderRadius: 10, padding: '10px 14px', marginBottom: 6 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ fontWeight: 700, fontSize: 13, ...F }}>{menu.nameKo}</span>
                       {menu.nameEn && <span style={{ fontSize: 10, color: '#666', ...F }}>{menu.nameEn}</span>}
-                      {menuFoodCats[menu.nameKo] && (() => {
-                        const fc = foodCategories.find(f => f.id === menuFoodCats[menu.nameKo])
-                        return fc ? <span style={{ fontSize: 9, background: '#1a2a1a', color: '#6fcf97', borderRadius: 4, padding: '1px 6px', ...F }}>{fc.emoji} {fcName(fc)}</span> : null
-                      })()}
                     </div>
                     {menu.price && <span style={{ color: '#c8a96e', fontWeight: 700, fontSize: 12, ...F }}>{menu.price}원</span>}
                   </div>
-                  {menu.options.map(opt => (
-                    <div key={opt.id} style={{ display: 'flex', gap: 6, marginBottom: 3, flexWrap: 'wrap', alignItems: 'center' }}>
-                      <span style={{ fontSize: 11, color: '#777', ...F }}>{opt.labelKo}</span>
-                      <span style={{ fontSize: 11, color: '#484848' }}>:</span>
-                      {opt.choices.filter(c => c.ko).map((c, i) => (
-                        <span key={c.id} style={{ fontSize: 11 }}>
-                          {i > 0 && <span style={{ color: '#333' }}> / </span>}
-                          <span style={{ color: c.extraPrice ? '#6fcf97' : '#ccc', ...F }}>
-                            {c.ko}{c.extraPrice ? ` (+${c.extraPrice}원)` : ''}
-                          </span>
-                        </span>
-                      ))}
-                    </div>
-                  ))}
                 </div>
               ))}
             </div>

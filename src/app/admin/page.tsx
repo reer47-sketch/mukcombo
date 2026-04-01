@@ -224,7 +224,10 @@ export default function AdminPage() {
   const [loginError, setLoginError] = useState('')
   const [loading, setLoading] = useState(false)
   const [stats, setStats] = useState<Stats | null>(null)
-  const [activeTab, setActiveTab] = useState<'overview' | 'stores' | 'posts' | 'users'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'stores' | 'posts' | 'users' | 'categories'>('overview')
+  const [foodCategories, setFoodCategories] = useState<{id: string; name_ko: string; name_en: string}[]>([])
+  const [newCatKo, setNewCatKo] = useState('')
+  const [newCatEn, setNewCatEn] = useState('')
   const [stores, setStores] = useState<{ id: string; name: string; name_en: string; emoji: string }[]>([])
   const [posts, setPosts] = useState<{ id: string; store_id: string; user_name: string; review: string; likes: number; created_at: string }[]>([])
   const [creds, setCreds] = useState({ username: '', password: '' })
@@ -248,9 +251,15 @@ export default function AdminPage() {
     if (Array.isArray(data)) setPosts(data)
   }, [])
 
+  const loadFoodCats = useCallback(async () => {
+    const res = await fetch('/api/food-categories')
+    const data = await res.json()
+    if (Array.isArray(data)) setFoodCategories(data)
+  }, [])
+
   useEffect(() => {
-    if (loggedIn) { loadStats(creds.username, creds.password); loadStores(); loadPosts() }
-  }, [loggedIn, creds, loadStats, loadStores, loadPosts])
+    if (loggedIn) { loadStats(creds.username, creds.password); loadStores(); loadPosts(); loadFoodCats() }
+  }, [loggedIn, creds, loadStats, loadStores, loadPosts, loadFoodCats])
 
   const handleLogin = async () => {
     setLoading(true); setLoginError('')
@@ -333,6 +342,7 @@ export default function AdminPage() {
           {tab('stores', '🏪 가게')}
           {tab('posts', '📝 게시글')}
           {tab('users', '👥 사용자')}
+          {tab('categories', '🏷️ 카테고리')}
         </div>
 
         {/* 개요 */}
@@ -425,6 +435,64 @@ export default function AdminPage() {
               )
             })}
             {posts.length === 0 && <div style={{ color: '#444', textAlign: 'center', padding: 40 }}>게시글이 없어요</div>}
+          </div>
+        )}
+
+        {/* 범용 카테고리 관리 */}
+        {activeTab === 'categories' && (
+          <div>
+            <div style={{ fontSize: 12, color: '#555', letterSpacing: 2, fontWeight: 700, marginBottom: 16 }}>먹검색 범용 카테고리 관리</div>
+            {/* 새 카테고리 추가 */}
+            <div style={{ background: '#0d0d0d', border: '1px solid #1e1e1e', borderRadius: 12, padding: 16, marginBottom: 20 }}>
+              <div style={{ fontSize: 11, color: '#c8a96e', fontWeight: 700, marginBottom: 12, ...F }}>+ 새 카테고리 추가</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8 }}>
+                <div>
+                  <div style={{ fontSize: 10, color: '#666', marginBottom: 4, ...F }}>🇰🇷 한국어</div>
+                  <input value={newCatKo} onChange={e => setNewCatKo(e.target.value)} placeholder="예: 라멘/우동" style={inp} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, color: '#666', marginBottom: 4, ...F }}>🇺🇸 English</div>
+                  <input value={newCatEn} onChange={e => setNewCatEn(e.target.value)} placeholder="e.g. Ramen/Udon" style={inp} />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                  <button onClick={async () => {
+                    if (!newCatKo.trim()) return alert('한국어 이름을 입력해주세요')
+                    const res = await fetch('/api/food-categories', {
+                      method: 'POST', headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ name_ko: newCatKo.trim(), name_en: newCatEn.trim() || newCatKo.trim() })
+                    })
+                    const json = await res.json()
+                    if (json.id) { setFoodCategories([...foodCategories, json]); setNewCatKo(''); setNewCatEn('') }
+                    else alert('오류: ' + JSON.stringify(json))
+                  }} style={{ padding: '10px 16px', background: '#c8a96e', color: '#080808', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', ...F }}>
+                    추가
+                  </button>
+                </div>
+              </div>
+            </div>
+            {/* 카테고리 목록 */}
+            {foodCategories.map(fc => (
+              <div key={fc.id} style={{ background: '#0d0d0d', border: '1px solid #1e1e1e', borderRadius: 10, padding: '12px 16px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <span style={{ fontWeight: 700, fontSize: 14, ...F }}>{fc.name_ko}</span>
+                  <span style={{ fontSize: 12, color: '#666', marginLeft: 10, ...F }}>{fc.name_en}</span>
+                </div>
+                <span style={{ fontSize: 10, color: '#444', ...F }}>{fc.id}</span>
+                <button onClick={async () => {
+                  if (!confirm(`"${fc.name_ko}" 카테고리를 삭제할까요?`)) return
+                  const res = await fetch('/api/food-categories', {
+                    method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: fc.id })
+                  })
+                  const json = await res.json()
+                  if (json.success) setFoodCategories(foodCategories.filter(c => c.id !== fc.id))
+                  else alert('삭제 실패: ' + JSON.stringify(json))
+                }} style={{ background: '#2a1a1a', border: '1px solid #3a2a2a', color: '#e05a5a', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', ...F }}>
+                  🗑 삭제
+                </button>
+              </div>
+            ))}
+            {foodCategories.length === 0 && <div style={{ color: '#444', textAlign: 'center', padding: 40 }}>카테고리가 없어요</div>}
           </div>
         )}
 
