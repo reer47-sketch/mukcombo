@@ -37,6 +37,12 @@ function StoreForm({ onSaved, onCancel }: { onSaved: () => void; onCancel: () =>
   const [emoji, setEmoji] = useState('🍜')
   const [cats, setCats] = useState<CatDraft[]>([EMPTY_CAT()])
   const [saving, setSaving] = useState(false)
+  const [foodCategories, setFoodCategories] = useState<{id: string; name_ko: string; name_en: string; emoji: string}[]>([])
+  const [menuFoodCats, setMenuFoodCats] = useState<Record<string, string>>({})
+
+  useEffect(() => {
+    fetch('/api/food-categories').then(r => r.json()).then(data => { if (Array.isArray(data)) setFoodCategories(data) })
+  }, [])
 
   const updateCat = (idx: number, updated: CatDraft) => { const c = [...cats]; c[idx] = updated; setCats(c) }
   const deleteCat = (idx: number) => cats.length > 1 && setCats(cats.filter((_, i) => i !== idx))
@@ -72,7 +78,25 @@ function StoreForm({ onSaved, onCancel }: { onSaved: () => void; onCancel: () =>
       body: JSON.stringify({ name: storeName.ko, nameEn: storeName.en, emoji, address: address.ko, addressEn: address.en, mapUrl, categories, prices, menuNames: menu_names, menuOptions: menu_options }),
     })
     const json = await res.json()
-    if (json.id) { alert('가게 등록 완료! 🎉'); onSaved() }
+    if (json.id) {
+      // menu_items 테이블에 범용 카테고리 연결 저장
+      const menuItemsPayload = Object.entries(menuFoodCats)
+        .filter(([, catId]) => catId)
+        .map(([nameKo, foodCategoryId]) => ({
+          storeId: json.id,
+          nameKo,
+          nameEn: menu_names[nameKo]?.en || '',
+          price: prices[nameKo] || '',
+          foodCategoryId,
+        }))
+      if (menuItemsPayload.length > 0) {
+        await fetch('/api/menu-items', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(menuItemsPayload),
+        })
+      }
+      alert('가게 등록 완료! 🎉'); onSaved()
+    }
     else alert('오류: ' + JSON.stringify(json))
     setSaving(false)
   }
