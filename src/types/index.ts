@@ -56,6 +56,7 @@ export interface Post {
   review: string
   review_lang: string
   photo_url: string | null
+  user_id: string | null
   likes: number
   created_at: string
   comments: Comment[]
