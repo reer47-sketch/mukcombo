@@ -120,6 +120,22 @@ export default function Home() {
   // 사용자
   const [currentUser, setCurrentUser] = useState<{ id: string; nickname: string } | null>(null)
   const [showNicknamePopup, setShowNicknamePopup] = useState(false)
+  const [ownerUser, setOwnerUser] = useState<{ id: string; email: string } | null>(null)
+
+  // 점주 로그인 상태 확인
+  useEffect(() => {
+    import('@supabase/supabase-js').then(({ createClient }) => {
+      const sb = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      )
+      sb.auth.getSession().then(({ data }) => {
+        if (data.session?.user) {
+          setOwnerUser({ id: data.session.user.id, email: data.session.user.email || '' })
+        }
+      })
+    })
+  }, [])
 
   const [stores, setStores] = useState<Store[]>([])
   const [posts, setPosts] = useState<Post[]>([])
@@ -326,12 +342,20 @@ export default function Home() {
                     </div>
                     <div style={{ color: '#444', fontSize: 18 }}>›</div>
                   </div>
-                  <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #1a1a1a', display: 'flex', justifyContent: 'flex-end' }}>
-                    <button onClick={() => { setEditingStore(s); setSubView('edit') }}
-                      style={{ background: '#141414', border: '1px solid #2a2a2a', color: '#888', borderRadius: 8, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer', ...F }}>
-                      {t.storeEdit}
-                    </button>
-                  </div>
+                  {/* 점주 또는 어드민만 편집 버튼 표시 */}
+                  {ownerUser && (s.owner_id === ownerUser.id || !s.owner_id) && (
+                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      {ownerUser && !s.owner_id && (
+                        <span style={{ fontSize: 10, color: '#555', ...F }}>점주 미연결</span>
+                      )}
+                      <div style={{ marginLeft: 'auto' }}>
+                        <button onClick={() => { setEditingStore(s); setSubView('edit') }}
+                          style={{ background: '#141414', border: '1px solid #2a2a2a', color: '#888', borderRadius: 8, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer', ...F }}>
+                          {t.storeEdit}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
               <div style={{ border: '1.5px dashed #1e1e1e', borderRadius: 14, padding: 20, textAlign: 'center', color: '#333', fontSize: 13 }}>

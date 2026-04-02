@@ -6,7 +6,6 @@ export interface MenuNameEntry {
 export interface OptionChoice {
   ko: string
   en: string
-  extraPrice?: string
 }
 
 export interface MenuOption {
@@ -29,6 +28,7 @@ export interface Store {
   address: string
   address_en: string
   map_url: string
+  owner_id?: string | null
   categories: Record<string, string[]>
   prices: Record<string, string>
   menu_names: Record<string, MenuNameEntry>
@@ -50,7 +50,6 @@ export interface Post {
   id: string
   store_id: string
   user_name: string
-  user_id: string | null
   avatar: string
   items: MainMenuItem[]
   side_items: string[]
