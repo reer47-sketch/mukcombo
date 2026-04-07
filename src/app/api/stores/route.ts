@@ -23,6 +23,7 @@ export async function POST(req: NextRequest) {
       prices: body.prices || {},
       menu_names: body.menuNames || {},
       menu_options: body.menuOptions || {},
+      owner_id: body.ownerId || null,
     }])
     .select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

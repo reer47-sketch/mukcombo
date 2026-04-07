@@ -30,8 +30,8 @@ const EMPTY_CAT = (): CatDraft => ({
   menus: [{ id: uid(), nameKo: '', nameEn: '', price: '', options: [] }]
 })
 
-// ── 가게 등록 폼 (어드민 전용) ────────────────────────────
-function StoreForm({ token, onSaved, onCancel }: { token: string; onSaved: () => void; onCancel: () => void }) {
+// ── 가게 등록 폼 (점주/어드민 공용) ──────────────────────
+function StoreForm({ userId, onSaved, onCancel }: { userId?: string; onSaved: () => void; onCancel: () => void }) {
   const [storeName, setStoreName] = useState({ ko: '', en: '' })
   const [address, setAddress] = useState({ ko: '', en: '' })
   const [mapUrl, setMapUrl] = useState('')
@@ -80,6 +80,7 @@ function StoreForm({ token, onSaved, onCancel }: { token: string; onSaved: () =>
         name: storeName.ko, nameEn: storeName.en, emoji,
         address: address.ko, addressEn: address.en, mapUrl,
         categories, prices, menuNames: menu_names, menuOptions: menu_options,
+        ownerId: userId || null,
       }),
     })
     const json = await res.json()
@@ -456,18 +457,6 @@ export default function Dashboard() {
             {/* 가게 관리 */}
             {adminTab === 'stores' && (
               <div>
-                {!showAddStore && (
-                  <button onClick={() => setShowAddStore(true)} style={{ width: '100%', background: '#0d0d0d', border: '2px dashed #c8a96e', borderRadius: 14, padding: 16, color: '#c8a96e', fontSize: 14, fontWeight: 700, cursor: 'pointer', marginBottom: 20, ...F }}>
-                    + 새 가게 등록
-                  </button>
-                )}
-                {showAddStore && (
-                  <StoreForm
-                    token={token}
-                    onSaved={() => { setShowAddStore(false); loadAdminData(token) }}
-                    onCancel={() => setShowAddStore(false)}
-                  />
-                )}
                 <div style={{ fontSize: 12, color: '#555', letterSpacing: 2, fontWeight: 700, marginBottom: 16 }}>등록된 가게 ({adminStores.length})</div>
                 {adminStores.map(s => (
                   <div key={s.id} style={{ background: '#0d0d0d', border: '1px solid #1e1e1e', borderRadius: 12, padding: '16px 18px', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -608,7 +597,7 @@ export default function Dashboard() {
             ) : (
               <>
                 <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
-                  {([['mystores', '🏪 내 가게'], ['claim', '+ 가게 연결']] as const).map(([k, label]) => (
+                  {([['mystores', '🏪 내 가게']] as const).map(([k, label]) => (
                     <button key={k} onClick={() => setOwnerTab(k)}
                       style={{ background: ownerTab === k ? '#c8a96e' : '#141414', color: ownerTab === k ? '#080808' : '#888', border: 'none', borderRadius: 16, padding: '7px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', ...F }}>
                       {label}
@@ -618,72 +607,47 @@ export default function Dashboard() {
 
                 {ownerTab === 'mystores' && (
                   <div>
-                    <div style={{ fontSize: 12, color: '#555', letterSpacing: 2, fontWeight: 700, marginBottom: 16 }}>내 가게 ({myStores.length})</div>
-                    {myStores.length === 0 ? (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                      <div style={{ fontSize: 12, color: '#555', letterSpacing: 2, fontWeight: 700 }}>내 가게 ({myStores.length})</div>
+                      {!showAddStore && (
+                        <button onClick={() => setShowAddStore(true)} style={{ background: '#c8a96e', color: '#080808', border: 'none', borderRadius: 10, padding: '7px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', ...F }}>
+                          + 새 가게 등록
+                        </button>
+                      )}
+                    </div>
+                    {showAddStore && (
+                      <StoreForm
+                        userId={user?.id}
+                        onSaved={() => { setShowAddStore(false); if (user) loadMyStores(user.id) }}
+                        onCancel={() => setShowAddStore(false)}
+                      />
+                    )}
+                    {!showAddStore && myStores.length === 0 && (
                       <div style={{ background: '#0d0d0d', border: '1.5px dashed #1e1e1e', borderRadius: 14, padding: 40, textAlign: 'center' }}>
                         <div style={{ fontSize: 32, marginBottom: 12 }}>🏪</div>
-                        <div style={{ fontSize: 14, color: '#555', marginBottom: 16 }}>아직 연결된 가게가 없어요</div>
-                        <button onClick={() => setOwnerTab('claim')} style={{ background: '#c8a96e', color: '#080808', border: 'none', borderRadius: 10, padding: '10px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer', ...F }}>
-                          + 가게 연결하기
+                        <div style={{ fontSize: 14, color: '#555', marginBottom: 16 }}>아직 등록된 가게가 없어요</div>
+                        <button onClick={() => setShowAddStore(true)} style={{ background: '#c8a96e', color: '#080808', border: 'none', borderRadius: 10, padding: '10px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer', ...F }}>
+                          + 가게 등록하기
                         </button>
                       </div>
-                    ) : (
-                      myStores.map(s => (
-                        <div key={s.id} style={{ background: '#0d0d0d', border: '1px solid #1c1c1c', borderRadius: 14, padding: '16px 18px', marginBottom: 12 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                            <div style={{ fontSize: 32 }}>{s.emoji}</div>
-                            <div style={{ flex: 1 }}>
-                              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>{s.name}</div>
-                              <div style={{ fontSize: 11, color: '#c8a96e' }}>📍 {s.address}</div>
-                            </div>
-                            <button onClick={() => setEditingStore(s)} style={{ background: '#c8a96e', border: 'none', color: '#080808', borderRadius: 8, padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', ...F }}>
-                              ✏️ 메뉴 편집
-                            </button>
-                          </div>
-                        </div>
-                      ))
                     )}
-                  </div>
-                )}
-
-                {ownerTab === 'claim' && (
-                  <div>
-                    <div style={{ fontSize: 12, color: '#555', letterSpacing: 2, fontWeight: 700, marginBottom: 16 }}>가게 연결하기</div>
-                    <div style={{ background: '#0d0d0d', border: '1px solid #1e1e1e', borderRadius: 14, padding: 20, marginBottom: 20 }}>
-                      <div style={{ fontSize: 13, color: '#888', marginBottom: 16, lineHeight: 1.6 }}>
-                        아래 목록에서 본인 가게의 ID를 확인하고 입력하세요.<br />
-                        어드민에게 요청하여 가게를 먼저 등록받아야 해요.
-                      </div>
-                      <input value={claimCode} onChange={e => setClaimCode(e.target.value)}
-                        placeholder="가게 ID 입력 (예: 85fea5b1-...)"
-                        style={{ width: '100%', background: '#141414', border: '1px solid #2a2a2a', borderRadius: 8, padding: '10px 14px', color: '#f0ece4', fontSize: 13, outline: 'none', boxSizing: 'border-box', marginBottom: 12, ...F }} />
-                      {claimMsg && (
-                        <div style={{ fontSize: 12, color: claimMsg.startsWith('✅') ? '#6fcf97' : '#e05a5a', marginBottom: 12 }}>{claimMsg}</div>
-                      )}
-                      <button onClick={handleClaim} style={{ width: '100%', padding: 12, background: '#c8a96e', color: '#080808', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer', ...F }}>
-                        연결하기
-                      </button>
-                    </div>
-                    <div style={{ fontSize: 12, color: '#555', letterSpacing: 2, fontWeight: 700, marginBottom: 12 }}>등록된 가게 목록</div>
-                    {allStores.filter(s => !s.owner_id).map(s => (
-                      <div key={s.id} style={{ background: '#0d0d0d', border: '1px solid #1e1e1e', borderRadius: 10, padding: '12px 14px', marginBottom: 8 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <span style={{ fontSize: 22 }}>{s.emoji}</span>
+                    {myStores.map(s => (
+                      <div key={s.id} style={{ background: '#0d0d0d', border: '1px solid #1c1c1c', borderRadius: 14, padding: '16px 18px', marginBottom: 12 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                          <div style={{ fontSize: 32 }}>{s.emoji}</div>
                           <div style={{ flex: 1 }}>
-                            <div style={{ fontWeight: 700, fontSize: 14 }}>{s.name}</div>
-                            <div style={{ fontSize: 10, color: '#555', marginTop: 2, fontFamily: "'Inter', monospace" }}>{s.id}</div>
+                            <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>{s.name}</div>
+                            <div style={{ fontSize: 11, color: '#c8a96e' }}>📍 {s.address}</div>
                           </div>
-                          <button onClick={() => setClaimCode(s.id)} style={{ background: '#141414', border: '1px solid #2a2a2a', color: '#888', borderRadius: 6, padding: '5px 10px', fontSize: 11, cursor: 'pointer', ...F }}>
-                            선택
+                          <button onClick={() => setEditingStore(s)} style={{ background: '#c8a96e', border: 'none', color: '#080808', borderRadius: 8, padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', ...F }}>
+                            ✏️ 메뉴 편집
                           </button>
                         </div>
                       </div>
                     ))}
-                    {allStores.filter(s => !s.owner_id).length === 0 && (
-                      <div style={{ color: '#444', fontSize: 13, textAlign: 'center', padding: 20 }}>연결 가능한 가게가 없어요</div>
-                    )}
                   </div>
                 )}
+
               </>
             )}
           </>
