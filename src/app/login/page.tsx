@@ -21,7 +21,7 @@ export default function LoginPage() {
   useEffect(() => {
     // 이미 로그인된 경우 대시보드로
     supabase.auth.getSession().then(({ data }) => {
-      if (data.session) window.location.href = '/dashboard'
+      if (data.session) window.location.href = '/?tab=manage'
     })
 
     const link = document.createElement('link')
@@ -42,7 +42,7 @@ export default function LoginPage() {
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) setError('이메일 또는 비밀번호가 틀렸어요')
-      else window.location.href = '/dashboard'
+      else window.location.href = '/?tab=manage'
     }
     setLoading(false)
   }

@@ -8,6 +8,7 @@ import type { Store, Post, Comment, MainMenuItem } from '@/types'
 import MenuEditor from '@/components/MenuEditor'
 import NicknamePopup from '@/components/NicknamePopup'
 import FoodSearch from '@/components/FoodSearch'
+import DashboardTab from '@/components/DashboardTab'
 
 // ── 헬퍼 ──────────────────────────────────────────────────
 const dName = (store: Store, koKey: string, lang: Lang) => {
@@ -134,7 +135,7 @@ export default function Home() {
   const [stores, setStores] = useState<Store[]>([])
   const [posts, setPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
-  const [tab, setTab] = useState<'search' | 'feed' | 'stores'>('feed')
+  const [tab, setTab] = useState<'search' | 'feed' | 'stores' | 'manage'>('feed')
   const [subView, setSubView] = useState<'list' | 'edit'>('list')
   const [editingStore, setEditingStore] = useState<Store | null>(null)
   const [filterStoreId, setFilterStoreId] = useState<string | null>(null)
@@ -150,6 +151,15 @@ export default function Home() {
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+
+  // URL ?tab=manage 처리 (Google OAuth 콜백 후)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('tab') === 'manage') {
+      setTab('manage')
+      window.history.replaceState({}, '', '/')
+    }
+  }, [])
 
   // 닉네임 로컬스토리지 체크
   useEffect(() => {
@@ -310,9 +320,17 @@ export default function Home() {
                 {tv === 'feed' ? t.feed : t.stores}
               </button>
             ))}
+            <button onClick={() => setTab('manage')} style={{ background: 'none', border: 'none', padding: '8px 14px', color: tab === 'manage' ? '#c8a96e' : '#555', borderBottom: tab === 'manage' ? '2px solid #c8a96e' : '2px solid transparent', fontSize: 13, cursor: 'pointer', fontWeight: tab === 'manage' ? 700 : 400, ...F }}>
+              {t.manage}
+            </button>
           </div>
         )}
       </div>
+
+      {/* ── MANAGE ── */}
+      {tab === 'manage' && !showPostForm && (
+        <DashboardTab lang={lang} />
+      )}
 
       {/* ── FOOD SEARCH ── */}
       {tab === 'search' && !showPostForm && (

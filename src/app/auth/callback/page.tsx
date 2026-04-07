@@ -8,7 +8,7 @@ export default function AuthCallbackPage() {
     const code = new URLSearchParams(window.location.search).get('code')
     if (code) {
       supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
-        window.location.href = error ? '/login' : '/dashboard'
+        window.location.href = error ? '/login' : '/?tab=manage'
       })
     } else {
       window.location.href = '/login'

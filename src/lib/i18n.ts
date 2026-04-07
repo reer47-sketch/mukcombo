@@ -8,7 +8,7 @@ export const CAT_ACCENT: Record<string, string> = {
 export const T = {
   ko: {
     appSub: 'MUK-COMBO',
-    feed: '피드', stores: '가게',
+    feed: '피드', stores: '가게', manage: '관리',
     shareBtn: '+ 공유하기', cancelBtn: '✕ 취소',
     allFilter: '전체',
     noPost: '아직 등록된 조합이 없어요\n첫 번째로 공유해보세요! 🍽️',
@@ -66,7 +66,7 @@ export const T = {
   },
   en: {
     appSub: 'MUK-COMBO',
-    feed: 'Feed', stores: 'Stores',
+    feed: 'Feed', stores: 'Stores', manage: 'Manage',
     shareBtn: '+ Share', cancelBtn: '✕ Cancel',
     allFilter: 'All',
     noPost: 'No combos yet.\nBe the first to share one! 🍽️',
