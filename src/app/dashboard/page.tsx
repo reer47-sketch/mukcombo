@@ -381,6 +381,7 @@ export default function Dashboard() {
     </div>
   )
 
+
   const roleBadge = role === 'admin'
     ? <span style={{ fontSize: 11, color: '#e05a5a', fontWeight: 700, letterSpacing: 2 }}>ADMIN</span>
     : <span style={{ fontSize: 11, color: '#c8a96e', fontWeight: 700, letterSpacing: 1 }}>점주 포털</span>
