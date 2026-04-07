@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { Toaster } from 'react-hot-toast'
 import toast from 'react-hot-toast'
-import { uploadPostImage } from '@/lib/supabase'
+import { supabase, uploadPostImage } from '@/lib/supabase'
 import { T, CAT_ACCENT, type Lang, type Translations } from '@/lib/i18n'
 import type { Store, Post, Comment, MainMenuItem } from '@/types'
 import MenuEditor from '@/components/MenuEditor'
@@ -124,16 +124,10 @@ export default function Home() {
 
   // 점주 로그인 상태 확인
   useEffect(() => {
-    import('@supabase/supabase-js').then(({ createClient }) => {
-      const sb = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-      )
-      sb.auth.getSession().then(({ data }) => {
-        if (data.session?.user) {
-          setOwnerUser({ id: data.session.user.id, email: data.session.user.email || '' })
-        }
-      })
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session?.user) {
+        setOwnerUser({ id: data.session.user.id, email: data.session.user.email || '' })
+      }
     })
   }, [])
 

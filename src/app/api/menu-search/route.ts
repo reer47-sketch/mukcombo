@@ -3,13 +3,19 @@ import { NextRequest, NextResponse } from 'next/server'
 
 // GET /api/menu-search?q=라멘
 export async function GET(req: NextRequest) {
-  const q = req.nextUrl.searchParams.get('q')?.trim()
-  if (!q || q.length < 2) return NextResponse.json([])
+  const raw = req.nextUrl.searchParams.get('q')?.trim()
+  if (!raw || raw.length < 2) return NextResponse.json([])
 
-  // stores 전체 가져와서 JS에서 메뉴명 검색
+  // 입력 길이 제한 + LIKE 특수문자 이스케이프
+  const q = raw.slice(0, 50).replace(/%/g, '\\%').replace(/_/g, '\\_')
+  const qLower = q.toLowerCase()
+
+  // DB 레벨에서 menu_names JSONB 텍스트로 캐스팅 후 사전 필터링 — 전체 테이블 스캔 방지
   const { data: stores, error } = await supabase
     .from('stores')
     .select('id, name, name_en, emoji, address, address_en, map_url, categories, menu_names, prices')
+    .filter('menu_names::text', 'ilike', `%${q}%`)
+    .limit(50)
 
   if (error || !stores) return NextResponse.json([])
 
@@ -24,16 +30,14 @@ export async function GET(req: NextRequest) {
     const prices = store.prices || {}
     const categories = store.categories || {}
 
-    // 각 메뉴명에서 검색어 포함 여부 확인
+    // DB 필터 이후 JS에서 정확한 메뉴명 매칭
     Object.entries(menuNames).forEach(([nameKo, nameObj]: [string, any]) => {
       const ko = nameObj?.ko || nameKo
       const en = nameObj?.en || ''
-      // 한국어 또는 영어 메뉴명에 검색어 포함 여부
       if (
-        ko.toLowerCase().includes(q.toLowerCase()) ||
-        en.toLowerCase().includes(q.toLowerCase())
+        ko.toLowerCase().includes(qLower) ||
+        en.toLowerCase().includes(qLower)
       ) {
-        // 이 메뉴가 속한 카테고리 찾기
         let category = ''
         Object.entries(categories).forEach(([catName, menuList]: [string, any]) => {
           if (Array.isArray(menuList) && menuList.includes(nameKo)) {

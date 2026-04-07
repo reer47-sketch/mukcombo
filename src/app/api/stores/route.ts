@@ -1,9 +1,11 @@
 import { supabase } from '@/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const limit = Math.min(parseInt(req.nextUrl.searchParams.get('limit') || '200'), 200)
+  const offset = Math.max(parseInt(req.nextUrl.searchParams.get('offset') || '0'), 0)
   const { data, error } = await supabase
-    .from('stores').select('*').order('created_at', { ascending: true })
+    .from('stores').select('*').order('created_at', { ascending: false }).range(offset, offset + limit - 1)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data)
 }

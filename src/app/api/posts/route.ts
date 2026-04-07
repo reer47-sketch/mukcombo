@@ -35,9 +35,13 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   const { id, delta } = await req.json()
+  if (!id || (delta !== 1 && delta !== -1)) {
+    return NextResponse.json({ error: '잘못된 요청' }, { status: 400 })
+  }
   const { data: post } = await supabase
     .from('posts').select('likes').eq('id', id).single()
-  const newLikes = Math.max(0, (post?.likes || 0) + delta)
+  if (!post) return NextResponse.json({ error: '게시글을 찾을 수 없어요' }, { status: 404 })
+  const newLikes = Math.max(0, (post.likes || 0) + delta)
   const { data, error } = await supabase
     .from('posts').update({ likes: newLikes }).eq('id', id).select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
