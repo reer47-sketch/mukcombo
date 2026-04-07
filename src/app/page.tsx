@@ -354,35 +354,12 @@ export default function Home() {
                     </div>
                     <div style={{ color: '#444', fontSize: 18 }}>›</div>
                   </div>
-                  {/* 점주 또는 어드민만 편집 버튼 표시 */}
-                  {ownerUser && (s.owner_id === ownerUser.id || !s.owner_id) && (
-                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      {ownerUser && !s.owner_id && (
-                        <span style={{ fontSize: 10, color: '#555', ...F }}>점주 미연결</span>
-                      )}
-                      <div style={{ marginLeft: 'auto' }}>
-                        <button onClick={() => { setEditingStore(s); setSubView('edit') }}
-                          style={{ background: '#141414', border: '1px solid #2a2a2a', color: '#888', borderRadius: 8, padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer', ...F }}>
-                          {t.storeEdit}
-                        </button>
-                      </div>
-                    </div>
-                  )}
                 </div>
               ))}
               <div style={{ border: '1.5px dashed #1e1e1e', borderRadius: 14, padding: 20, textAlign: 'center', color: '#333', fontSize: 13 }}>
                 {t.storeComingSoon}
               </div>
             </>
-          )}
-          {subView === 'edit' && editingStore && (
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, paddingBottom: 16, borderBottom: '1px solid #1a1a1a' }}>
-                <button onClick={() => { setSubView('list'); setEditingStore(null) }} style={{ background: 'none', border: 'none', color: '#c8a96e', fontSize: 13, fontWeight: 700, cursor: 'pointer', ...F }}>{t.backBtn}</button>
-                <span style={{ fontSize: 14, fontWeight: 700, color: '#888' }}>{storeName(editingStore)}</span>
-              </div>
-              <MenuEditor store={editingStore} lang={lang} t={t as Translations} F={F} onSave={saveStore} />
-            </div>
           )}
         </div>
       )}
