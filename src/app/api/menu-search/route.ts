@@ -10,12 +10,10 @@ export async function GET(req: NextRequest) {
   const q = raw.slice(0, 50).replace(/%/g, '\\%').replace(/_/g, '\\_')
   const qLower = q.toLowerCase()
 
-  // DB 레벨에서 menu_names JSONB 텍스트로 캐스팅 후 사전 필터링 — 전체 테이블 스캔 방지
   const { data: stores, error } = await supabase
     .from('stores')
     .select('id, name, name_en, emoji, address, address_en, map_url, categories, menu_names, prices')
-    .filter('menu_names::text', 'ilike', `%${q}%`)
-    .limit(50)
+    .limit(200)
 
   if (error || !stores) return NextResponse.json([])
 
