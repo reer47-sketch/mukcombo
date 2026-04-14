@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import type { Post } from '@/types'
 
 type Lang = 'ko' | 'en'
@@ -101,7 +102,7 @@ function StoreModal({ card, lang, onClose }: { card: RecommendCard; lang: Lang; 
     })
   }
 
-  return (
+  return createPortal(
     <div
       onClick={onClose}
       style={{
@@ -202,7 +203,8 @@ function StoreModal({ card, lang, onClose }: { card: RecommendCard; lang: Lang; 
           })()}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
 
