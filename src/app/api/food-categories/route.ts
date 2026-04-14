@@ -5,6 +5,7 @@ export async function GET() {
   const { data, error } = await supabase
     .from('food_categories')
     .select('*')
+    .order('group_ko', { nullsFirst: true })
     .order('name_ko')
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data)

@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef } from 'react'
 import ChatBot from '@/components/ChatBot'
 
-interface FoodCategory { id: string; name_ko: string; name_en: string }
+interface FoodCategory { id: string; name_ko: string; name_en: string; group_ko: string; group_en: string; group_emoji: string }
 interface MatchedMenu { foodCategoryId: string; storeCategory: string; menus: { nameKo: string; nameEn: string; price: string }[] }
 interface SearchResult {
   store: { id: string; name: string; name_en: string; emoji: string; address: string; address_en: string; map_url: string }
@@ -200,24 +200,47 @@ export default function FoodSearch({ lang, F }: Props) {
           {lang === 'ko' ? '카테고리를 선택하면 해당 조합을 파는 식당을 찾아드려요' : 'Select categories to find restaurants with that combo'}
         </div>
 
-        {/* 카테고리 버튼들 */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-          {categories.map(cat => {
-            const sel = selected.includes(cat.id)
-            return (
-              <button key={cat.id} onClick={() => toggleCat(cat.id)} style={{
-                background: sel ? '#1a2a1a' : '#0d0d0d',
-                border: `1.5px solid ${sel ? '#6fcf97' : '#1e1e1e'}`,
-                borderRadius: 20, padding: '7px 16px',
-                cursor: 'pointer', transition: 'all 0.15s',
-                color: sel ? '#6fcf97' : '#888',
-                fontSize: 13, fontWeight: sel ? 700 : 400, ...F,
-              }}>
-                {sel ? '✓ ' : ''}{catName(cat)}
-              </button>
-            )
-          })}
-        </div>
+        {/* 카테고리 버튼들 — 그룹별 */}
+        {(() => {
+          const groups: { key: string; label: string; cats: FoodCategory[] }[] = []
+          const seen = new Set<string>()
+          categories.forEach(cat => {
+            const key = cat.group_ko || ''
+            if (!seen.has(key)) {
+              seen.add(key)
+              groups.push({ key, label: `${cat.group_emoji || ''} ${lang === 'en' ? (cat.group_en || cat.group_ko) : cat.group_ko}`.trim(), cats: [] })
+            }
+            groups[groups.length - 1 < 0 ? 0 : groups.findIndex(g => g.key === key)].cats.push(cat)
+          })
+          return (
+            <div style={{ marginBottom: 16 }}>
+              {groups.map(group => (
+                <div key={group.key} style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: 11, color: '#c8a96e', fontWeight: 700, letterSpacing: 0.5, marginBottom: 8, ...F }}>
+                    {group.label}
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+                    {group.cats.map(cat => {
+                      const sel = selected.includes(cat.id)
+                      return (
+                        <button key={cat.id} onClick={() => toggleCat(cat.id)} style={{
+                          background: sel ? '#1a2a1a' : '#0d0d0d',
+                          border: `1.5px solid ${sel ? '#6fcf97' : '#1e1e1e'}`,
+                          borderRadius: 20, padding: '6px 14px',
+                          cursor: 'pointer', transition: 'all 0.15s',
+                          color: sel ? '#6fcf97' : '#888',
+                          fontSize: 13, fontWeight: sel ? 700 : 400, ...F,
+                        }}>
+                          {sel ? '✓ ' : ''}{catName(cat)}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        })()}
 
         {/* 선택된 조합 */}
         {selected.length > 0 && (

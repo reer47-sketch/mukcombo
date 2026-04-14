@@ -5,7 +5,7 @@ import type { Post } from '@/types'
 
 type Lang = 'ko' | 'en'
 
-interface FoodCategory { id: string; name_ko: string; name_en: string }
+interface FoodCategory { id: string; name_ko: string; name_en: string; group_ko: string; group_en: string; group_emoji: string }
 
 interface StoreResult {
   store: {
@@ -26,7 +26,7 @@ interface RecommendCard {
 interface Message {
   from: 'bot' | 'user'
   text: string
-  options?: { label: string; value: string }[]
+  options?: { label: string; value: string; group?: string }[]
   cards?: RecommendCard[]
 }
 
@@ -291,8 +291,12 @@ export default function ChatBot({ lang }: { lang: Lang }) {
       next.time = value
       setAnswers(next)
       const catOpts = [
-        ...categories.map(c => ({ label: lang === 'ko' ? c.name_ko : c.name_en, value: c.id })),
-        { label: '아무거나', value: 'any' },
+        ...categories.map(c => ({
+          label: lang === 'ko' ? c.name_ko : c.name_en,
+          value: c.id,
+          group: `${c.group_emoji || ''} ${lang === 'en' ? (c.group_en || c.group_ko) : c.group_ko}`.trim(),
+        })),
+        { label: lang === 'ko' ? '아무거나' : 'Any', value: 'any' },
       ]
       botSay('어떤 음식이 끌리세요?', catOpts)
       setStep(3)
@@ -348,22 +352,52 @@ export default function ChatBot({ lang }: { lang: Lang }) {
             </div>
 
             {msg.options && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8, paddingLeft: 36 }}>
-                {msg.options.map(opt => {
+              <div style={{ marginTop: 8, paddingLeft: 36 }}>
+                {(() => {
                   const disabled = !isLastMsg(i) || done || typing
+                  const hasGroups = msg.options!.some(o => o.group)
+                  if (!hasGroups) {
+                    return (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {msg.options!.map(opt => (
+                          <button key={opt.value} onClick={() => handleOption(opt.label, opt.value)} disabled={disabled}
+                            style={{ background: disabled ? '#111' : '#1a1a1a', border: `1px solid ${disabled ? '#1e1e1e' : '#2e2e2e'}`, color: disabled ? '#383838' : '#c8a96e', borderRadius: 20, padding: '6px 14px', fontSize: 12, cursor: disabled ? 'default' : 'pointer', ...F }}>
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    )
+                  }
+                  // grouped options
+                  const groups: { header: string; opts: typeof msg.options }[] = []
+                  const seenGroups = new Set<string>()
+                  msg.options!.forEach(opt => {
+                    const hdr = opt.group || ''
+                    if (!seenGroups.has(hdr)) { seenGroups.add(hdr); groups.push({ header: hdr, opts: [] }) }
+                    groups[groups.findIndex(g => g.header === hdr)].opts!.push(opt)
+                  })
                   return (
-                    <button key={opt.value} onClick={() => handleOption(opt.label, opt.value)} disabled={disabled}
-                      style={{
-                        background: disabled ? '#111' : '#1a1a1a',
-                        border: `1px solid ${disabled ? '#1e1e1e' : '#2e2e2e'}`,
-                        color: disabled ? '#383838' : '#c8a96e',
-                        borderRadius: 20, padding: '6px 14px', fontSize: 12,
-                        cursor: disabled ? 'default' : 'pointer', ...F,
-                      }}>
-                      {opt.label}
-                    </button>
+                    <div>
+                      {groups.map(g => (
+                        <div key={g.header} style={{ marginBottom: 10 }}>
+                          {g.header && (
+                            <div style={{ fontSize: 10, color: '#c8a96e', fontWeight: 700, marginBottom: 5, letterSpacing: 0.3, ...F }}>
+                              {g.header}
+                            </div>
+                          )}
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                            {g.opts!.map(opt => (
+                              <button key={opt.value} onClick={() => handleOption(opt.label, opt.value)} disabled={disabled}
+                                style={{ background: disabled ? '#111' : '#1a1a1a', border: `1px solid ${disabled ? '#1e1e1e' : '#2e2e2e'}`, color: disabled ? '#383838' : '#c8a96e', borderRadius: 20, padding: '6px 14px', fontSize: 12, cursor: disabled ? 'default' : 'pointer', ...F }}>
+                                {opt.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   )
-                })}
+                })()}
               </div>
             )}
 

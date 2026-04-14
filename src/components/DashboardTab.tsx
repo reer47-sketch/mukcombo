@@ -42,7 +42,7 @@ function StoreForm({ userId, onSaved, onCancel }: { userId?: string; onSaved: ()
   const [emoji, setEmoji] = useState('🍜')
   const [cats, setCats] = useState<CatDraft[]>([EMPTY_CAT()])
   const [saving, setSaving] = useState(false)
-  const [foodCategories, setFoodCategories] = useState<{ id: string; name_ko: string; name_en: string; emoji: string }[]>([])
+  const [foodCategories, setFoodCategories] = useState<{ id: string; name_ko: string; name_en: string; emoji: string; group_ko: string; group_en: string; group_emoji: string }[]>([])
   const [menuFoodCats, setMenuFoodCats] = useState<Record<string, string>>({})
 
   useEffect(() => {
@@ -326,7 +326,7 @@ export default function DashboardTab({ lang }: { lang: Lang }) {
   const [stats, setStats] = useState<AdminStats | null>(null)
   const [adminStores, setAdminStores] = useState<{ id: string; name: string; name_en: string; emoji: string; subscription_status: string; is_premium: boolean; owner_id: string | null }[]>([])
   const [adminPosts, setAdminPosts] = useState<{ id: string; store_id: string; user_name: string; review: string; likes: number; created_at: string }[]>([])
-  const [foodCategories, setFoodCategories] = useState<{ id: string; name_ko: string; name_en: string }[]>([])
+  const [foodCategories, setFoodCategories] = useState<{ id: string; name_ko: string; name_en: string; group_ko: string; group_en: string; group_emoji: string }[]>([])
   const [adminTab, setAdminTab] = useState<'overview' | 'stores' | 'posts' | 'users' | 'categories'>('overview')
   const [newCatKo, setNewCatKo] = useState('')
   const [newCatEn, setNewCatEn] = useState('')
@@ -701,27 +701,46 @@ export default function DashboardTab({ lang }: { lang: Lang }) {
                   </div>
                 </div>
               </div>
-              {foodCategories.map(fc => (
-                <div key={fc.id} style={{ background: '#0d0d0d', border: '1px solid #1e1e1e', borderRadius: 10, padding: '10px 14px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{ flex: 1 }}>
-                    <span style={{ fontWeight: 700, fontSize: 14, ...F }}>{fc.name_ko}</span>
-                    <span style={{ fontSize: 12, color: '#666', marginLeft: 10, ...F }}>{fc.name_en}</span>
+              {(() => {
+                if (foodCategories.length === 0) return <div style={{ color: '#444', textAlign: 'center', padding: 40, ...F }}>카테고리가 없어요</div>
+                const groups: { key: string; label: string; items: typeof foodCategories }[] = []
+                const seen = new Set<string>()
+                foodCategories.forEach(fc => {
+                  const key = fc.group_ko || ''
+                  if (!seen.has(key)) {
+                    seen.add(key)
+                    groups.push({ key, label: `${fc.group_emoji || ''} ${fc.group_ko || '기타'}`.trim(), items: [] })
+                  }
+                  groups[groups.findIndex(g => g.key === key)].items.push(fc)
+                })
+                return groups.map(group => (
+                  <div key={group.key} style={{ marginBottom: 16 }}>
+                    <div style={{ fontSize: 11, color: '#c8a96e', fontWeight: 700, letterSpacing: 0.5, marginBottom: 8, ...F }}>
+                      {group.label}
+                    </div>
+                    {group.items.map(fc => (
+                      <div key={fc.id} style={{ background: '#0d0d0d', border: '1px solid #1e1e1e', borderRadius: 10, padding: '10px 14px', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{ flex: 1 }}>
+                          <span style={{ fontWeight: 700, fontSize: 14, ...F }}>{fc.name_ko}</span>
+                          <span style={{ fontSize: 12, color: '#666', marginLeft: 10, ...F }}>{fc.name_en}</span>
+                        </div>
+                        <button onClick={async () => {
+                          if (!confirm(`"${fc.name_ko}" 카테고리를 삭제할까요?`)) return
+                          const res = await fetch('/api/food-categories', {
+                            method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ id: fc.id })
+                          })
+                          const json = await res.json()
+                          if (json.success) setFoodCategories(prev => prev.filter(c => c.id !== fc.id))
+                          else alert('삭제 실패: ' + JSON.stringify(json))
+                        }} style={{ background: '#2a1a1a', border: '1px solid #3a2a2a', color: '#e05a5a', borderRadius: 8, padding: '6px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer', ...F }}>
+                          🗑 삭제
+                        </button>
+                      </div>
+                    ))}
                   </div>
-                  <button onClick={async () => {
-                    if (!confirm(`"${fc.name_ko}" 카테고리를 삭제할까요?`)) return
-                    const res = await fetch('/api/food-categories', {
-                      method: 'DELETE', headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ id: fc.id })
-                    })
-                    const json = await res.json()
-                    if (json.success) setFoodCategories(prev => prev.filter(c => c.id !== fc.id))
-                    else alert('삭제 실패: ' + JSON.stringify(json))
-                  }} style={{ background: '#2a1a1a', border: '1px solid #3a2a2a', color: '#e05a5a', borderRadius: 8, padding: '6px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer', ...F }}>
-                    🗑 삭제
-                  </button>
-                </div>
-              ))}
-              {foodCategories.length === 0 && <div style={{ color: '#444', textAlign: 'center', padding: 40, ...F }}>카테고리가 없어요</div>}
+                ))
+              })()}
             </div>
           )}
         </>
