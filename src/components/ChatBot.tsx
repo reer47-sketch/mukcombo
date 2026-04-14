@@ -63,6 +63,9 @@ const INIT_MESSAGES: Message[] = [
 function StoreModal({ card, lang, onClose }: { card: RecommendCard; lang: Lang; onClose: () => void }) {
   const [detail, setDetail] = useState<StoreDetail | null>(null)
   const [loading, setLoading] = useState(false)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => { setMounted(true) }, [])
 
   useEffect(() => {
     // matchedMenus가 비어있을 때(아무거나 선택)만 상세 fetch
@@ -102,6 +105,7 @@ function StoreModal({ card, lang, onClose }: { card: RecommendCard; lang: Lang; 
     })
   }
 
+  if (!mounted) return null
   return createPortal(
     <div
       onClick={onClose}
