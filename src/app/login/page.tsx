@@ -35,7 +35,7 @@ export default function LoginPage() {
     if (mode === 'signup') {
       const { error } = await supabase.auth.signUp({
         email, password,
-        options: { data: { name }, emailRedirectTo: `${window.location.origin}/dashboard` }
+        options: { data: { name }, emailRedirectTo: `${window.location.origin}/auth/callback` }
       })
       if (error) setError(error.message)
       else setMessage('이메일을 확인해주세요! 인증 링크를 보내드렸어요 📧')
