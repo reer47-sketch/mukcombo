@@ -17,7 +17,7 @@ interface AdminStats {
   storeCount: number; postCount: number; userCount: number
   stores: { id: string; name: string; emoji: string; subscription_status: string; is_premium: boolean; owner_id: string | null }[]
   posts: { id: string; store_id: string; likes: number; created_at: string }[]
-  users: { id: string; nickname: string; is_blocked: boolean; role: string; created_at: string }[]
+  users: { id: string; nickname: string; email: string | null; is_blocked: boolean; role: string; created_at: string }[]
 }
 interface Choice { id: string; ko: string; en: string; extraPrice: string }
 interface Option { id: string; key: string; labelKo: string; labelEn: string; choices: Choice[] }
@@ -371,7 +371,7 @@ export default function DashboardTab({ lang }: { lang: Lang }) {
     // users 테이블 자동 동기화 (최초 로그인 시 레코드 생성)
     await fetch('/api/users', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: u.id, nickname: u.user_metadata?.name || u.email?.split('@')[0] || '사용자' }),
+      body: JSON.stringify({ id: u.id, nickname: u.user_metadata?.name || u.email?.split('@')[0] || '사용자', email: u.email || '' }),
     })
 
     const roleRes = await fetch('/api/auth/role', {
@@ -652,6 +652,7 @@ export default function DashboardTab({ lang }: { lang: Lang }) {
                       </span>
                       {u.is_blocked && <span style={{ fontSize: 10, background: '#3a1a1a', color: '#e05a5a', borderRadius: 4, padding: '2px 6px' }}>차단됨</span>}
                     </div>
+                    {u.email && <div style={{ fontSize: 11, color: '#666', marginTop: 2, ...F }}>{u.email}</div>}
                     <div style={{ fontSize: 10, color: '#444', marginTop: 2, ...F }}>{new Date(u.created_at).toLocaleString('ko-KR')} 가입</div>
                   </div>
                   <div style={{ display: 'flex', gap: 6 }}>

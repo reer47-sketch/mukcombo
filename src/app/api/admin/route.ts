@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
     const [stores, posts, users] = await Promise.all([
       supabase.from('stores').select('id, name, emoji, subscription_status, is_premium, owner_id', { count: 'exact' }),
       supabase.from('posts').select('id, store_id, likes, created_at', { count: 'exact' }),
-      supabase.from('users').select('id, nickname, is_blocked, role, created_at', { count: 'exact' }),
+      supabase.from('users').select('id, nickname, email, is_blocked, role, created_at', { count: 'exact' }),
     ])
     return NextResponse.json({
       success: true,

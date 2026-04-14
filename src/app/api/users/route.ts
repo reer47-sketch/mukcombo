@@ -5,7 +5,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json()
   const { data, error } = await supabase
     .from('users')
-    .upsert([{ id: body.id, nickname: body.nickname }])
+    .upsert([{ id: body.id, nickname: body.nickname, email: body.email || null }])
     .select()
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
