@@ -234,6 +234,7 @@ export default function Home() {
 
   const handleSubmit = async () => {
     if (!selectedStore || mainItems.length + sideItems.length < 2 || !review.trim()) return
+    if (authUser) return  // 점주/어드민은 피드 등록 불가
     if (!currentUser) { setShowNicknamePopup(true); return }
     setSubmitting(true)
     try {
@@ -316,10 +317,12 @@ export default function Home() {
                 <span key={l} style={{ position: 'relative', zIndex: 1, width: 28, textAlign: 'center', fontSize: 11, fontWeight: 700, color: lang === l ? '#080808' : '#555', fontFamily: "'Inter',sans-serif" }}>{l.toUpperCase()}</span>
               ))}
             </button>
-            <button onClick={() => { if (showPostForm) { setShowPostForm(false) } else { setMainItems([]); setSideItems([]); setReview(''); setPhoto(null); setPhotoFile(null); setOptionPanelFor(null); setShowPostForm(true); setTab('feed') } }}
-              style={{ background: showPostForm ? '#c8a96e' : 'transparent', border: '1.5px solid #c8a96e', color: showPostForm ? '#080808' : '#c8a96e', borderRadius: 20, padding: '7px 14px', fontSize: 12, cursor: 'pointer', fontWeight: 700, ...F }}>
-              {showPostForm ? t.cancelBtn : t.shareBtn}
-            </button>
+            {!authUser && (
+              <button onClick={() => { if (showPostForm) { setShowPostForm(false) } else { setMainItems([]); setSideItems([]); setReview(''); setPhoto(null); setPhotoFile(null); setOptionPanelFor(null); setShowPostForm(true); setTab('feed') } }}
+                style={{ background: showPostForm ? '#c8a96e' : 'transparent', border: '1.5px solid #c8a96e', color: showPostForm ? '#080808' : '#c8a96e', borderRadius: 20, padding: '7px 14px', fontSize: 12, cursor: 'pointer', fontWeight: 700, ...F }}>
+                {showPostForm ? t.cancelBtn : t.shareBtn}
+              </button>
+            )}
           </div>
         </div>
         {!showPostForm && (
