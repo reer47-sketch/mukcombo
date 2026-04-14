@@ -15,9 +15,9 @@ const uid = () => Math.random().toString(36).slice(2, 8)
 
 interface AdminStats {
   storeCount: number; postCount: number; userCount: number
-  stores: { id: string; name: string }[]
+  stores: { id: string; name: string; emoji: string; subscription_status: string; is_premium: boolean; owner_id: string | null }[]
   posts: { id: string; store_id: string; likes: number; created_at: string }[]
-  users: { id: string; nickname: string; is_blocked: boolean; created_at: string }[]
+  users: { id: string; nickname: string; is_blocked: boolean; role: string; created_at: string }[]
 }
 interface Choice { id: string; ko: string; en: string; extraPrice: string }
 interface Option { id: string; key: string; labelKo: string; labelEn: string; choices: Choice[] }
@@ -319,12 +319,12 @@ export default function DashboardTab({ lang }: { lang: Lang }) {
 
   const [user, setUser] = useState<{ id: string; email: string; name?: string } | null>(null)
   const [token, setToken] = useState('')
-  const [role, setRole] = useState<'admin' | 'owner' | null>(null)
+  const [role, setRole] = useState<'admin' | 'owner' | 'user' | null>(null)
   const [authLoading, setAuthLoading] = useState(true)
 
   // 어드민 상태
   const [stats, setStats] = useState<AdminStats | null>(null)
-  const [adminStores, setAdminStores] = useState<{ id: string; name: string; name_en: string; emoji: string }[]>([])
+  const [adminStores, setAdminStores] = useState<{ id: string; name: string; name_en: string; emoji: string; subscription_status: string; is_premium: boolean; owner_id: string | null }[]>([])
   const [adminPosts, setAdminPosts] = useState<{ id: string; store_id: string; user_name: string; review: string; likes: number; created_at: string }[]>([])
   const [foodCategories, setFoodCategories] = useState<{ id: string; name_ko: string; name_en: string }[]>([])
   const [adminTab, setAdminTab] = useState<'overview' | 'stores' | 'posts' | 'users' | 'categories'>('overview')
@@ -367,6 +367,13 @@ export default function DashboardTab({ lang }: { lang: Lang }) {
     const u = session.user
     setUser({ id: u.id, email: u.email || '', name: u.user_metadata?.name })
     setToken(session.access_token)
+
+    // users 테이블 자동 동기화 (최초 로그인 시 레코드 생성)
+    await fetch('/api/users', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: u.id, nickname: u.user_metadata?.name || u.email?.split('@')[0] || '사용자' }),
+    })
+
     const roleRes = await fetch('/api/auth/role', {
       headers: { Authorization: `Bearer ${session.access_token}` }
     })
@@ -374,7 +381,7 @@ export default function DashboardTab({ lang }: { lang: Lang }) {
     setRole(r)
     if (r === 'admin') {
       await loadAdminData(session.access_token)
-    } else {
+    } else if (r === 'owner') {
       await loadMyStores(u.id)
     }
     setAuthLoading(false)
@@ -430,6 +437,29 @@ export default function DashboardTab({ lang }: { lang: Lang }) {
     }
   }
 
+  const setUserRole = async (userId: string, role: string, nickname: string) => {
+    if (!confirm(`"${nickname}" 사용자를 ${role === 'owner' ? '점주' : '일반 사용자'}로 변경할까요?`)) return
+    const res = await adminFetch('/api/admin', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'setUserRole', userId, role })
+    })
+    const json = await res.json()
+    if (json.success) {
+      setStats(prev => prev ? { ...prev, users: prev.users.map(u => u.id === userId ? { ...u, role } : u) } : prev)
+    } else alert('변경 실패: ' + json.error)
+  }
+
+  const setStoreStatus = async (storeId: string, updates: { subscription_status?: string; is_premium?: boolean }) => {
+    const res = await adminFetch('/api/admin', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'setStoreStatus', storeId, ...updates })
+    })
+    const json = await res.json()
+    if (json.success) {
+      setAdminStores(prev => prev.map(s => s.id === storeId ? { ...s, ...updates } : s))
+    } else alert('변경 실패: ' + json.error)
+  }
+
   const handleSaveStore = async (updated: Store) => {
     const res = await fetch('/api/stores', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
@@ -469,6 +499,18 @@ export default function DashboardTab({ lang }: { lang: Lang }) {
           로그아웃
         </button>
       </div>
+
+      {/* ══════ 일반 사용자 UI ══════ */}
+      {role === 'user' && (
+        <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+          <div style={{ fontSize: 40, marginBottom: 16 }}>😊</div>
+          <div style={{ fontWeight: 700, fontSize: 16, color: '#f0ece4', marginBottom: 8, ...F }}>일반 사용자 계정입니다</div>
+          <div style={{ fontSize: 13, color: '#555', lineHeight: 1.7, ...F }}>
+            가게 등록 및 관리는 점주 계정이 필요해요.<br />
+            점주 등록을 원하시면 관리자에게 문의해주세요.
+          </div>
+        </div>
+      )}
 
       {/* ══════ 어드민 UI ══════ */}
       {role === 'admin' && (
@@ -519,19 +561,42 @@ export default function DashboardTab({ lang }: { lang: Lang }) {
           {adminTab === 'stores' && (
             <div>
               <div style={{ fontSize: 11, color: '#555', letterSpacing: 2, fontWeight: 700, marginBottom: 14, ...F }}>등록된 가게 ({adminStores.length})</div>
-              {adminStores.map(s => (
-                <div key={s.id} style={{ background: '#0d0d0d', border: '1px solid #1e1e1e', borderRadius: 12, padding: '14px 16px', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <span style={{ fontSize: 26 }}>{(s as any).emoji}</span>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 700, fontSize: 14, ...F }}>{s.name}</div>
-                    <div style={{ fontSize: 11, color: '#555', marginTop: 2, ...F }}>{s.name_en}</div>
-                    <div style={{ fontSize: 11, color: '#6fcf97', marginTop: 2, ...F }}>게시글 {adminPosts.filter(p => p.store_id === s.id).length}개</div>
+              {adminStores.map(s => {
+                const statusColor: Record<string, string> = { active: '#6fcf97', trial: '#c8a96e', suspended: '#e05a5a' }
+                const statusLabel: Record<string, string> = { active: '활성', trial: '트라이얼', suspended: '정지' }
+                const nextStatus: Record<string, string> = { trial: 'active', active: 'suspended', suspended: 'trial' }
+                return (
+                  <div key={s.id} style={{ background: '#0d0d0d', border: '1px solid #1e1e1e', borderRadius: 12, padding: '14px 16px', marginBottom: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <span style={{ fontSize: 26 }}>{s.emoji}</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                          <span style={{ fontWeight: 700, fontSize: 14, ...F }}>{s.name}</span>
+                          {s.is_premium && <span style={{ fontSize: 10, background: '#f2994a22', color: '#f2994a', borderRadius: 4, padding: '2px 6px', fontWeight: 700, ...F }}>PREMIUM</span>}
+                          <span style={{ fontSize: 10, background: statusColor[s.subscription_status] + '22', color: statusColor[s.subscription_status], borderRadius: 4, padding: '2px 6px', fontWeight: 700, ...F }}>
+                            {statusLabel[s.subscription_status] || s.subscription_status}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: 11, color: '#555', marginTop: 2, ...F }}>{s.name_en}</div>
+                        <div style={{ fontSize: 11, color: '#6fcf97', marginTop: 2, ...F }}>게시글 {adminPosts.filter(p => p.store_id === s.id).length}개</div>
+                      </div>
+                      <button onClick={() => deleteStore(s.id, s.name)} style={{ background: '#2a1a1a', border: '1px solid #3a2a2a', color: '#e05a5a', borderRadius: 8, padding: '6px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer', ...F }}>🗑</button>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, marginTop: 10, paddingTop: 10, borderTop: '1px solid #1a1a1a' }}>
+                      <button
+                        onClick={() => setStoreStatus(s.id, { subscription_status: nextStatus[s.subscription_status] || 'trial' })}
+                        style={{ fontSize: 11, background: '#141414', border: '1px solid #2a2a2a', color: '#aaa', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', ...F }}>
+                        구독: {statusLabel[s.subscription_status]} →
+                      </button>
+                      <button
+                        onClick={() => setStoreStatus(s.id, { is_premium: !s.is_premium })}
+                        style={{ fontSize: 11, background: s.is_premium ? '#f2994a22' : '#141414', border: `1px solid ${s.is_premium ? '#f2994a44' : '#2a2a2a'}`, color: s.is_premium ? '#f2994a' : '#888', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', ...F }}>
+                        {s.is_premium ? '★ 프리미엄 해제' : '☆ 프리미엄 설정'}
+                      </button>
+                    </div>
                   </div>
-                  <button onClick={() => deleteStore(s.id, s.name)} style={{ background: '#2a1a1a', border: '1px solid #3a2a2a', color: '#e05a5a', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', ...F }}>
-                    🗑 삭제
-                  </button>
-                </div>
-              ))}
+                )
+              })}
               {adminStores.length === 0 && <div style={{ color: '#444', textAlign: 'center', padding: 40, ...F }}>등록된 가게가 없어요</div>}
             </div>
           )}
@@ -562,20 +627,43 @@ export default function DashboardTab({ lang }: { lang: Lang }) {
 
           {adminTab === 'users' && stats && (
             <div>
-              <div style={{ fontSize: 11, color: '#555', letterSpacing: 2, fontWeight: 700, marginBottom: 14, ...F }}>전체 사용자 ({stats.userCount})</div>
+              <div style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
+                {[
+                  { label: '전체', value: stats.users.length },
+                  { label: '점주', value: stats.users.filter(u => u.role === 'owner').length, color: '#c8a96e' },
+                  { label: '일반', value: stats.users.filter(u => u.role === 'user').length, color: '#888' },
+                ].map(item => (
+                  <div key={item.label} style={{ background: '#0d0d0d', border: '1px solid #1e1e1e', borderRadius: 8, padding: '8px 14px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: item.color || '#f0ece4' }}>{item.value}</div>
+                    <div style={{ fontSize: 10, color: '#555', ...F }}>{item.label}</div>
+                  </div>
+                ))}
+              </div>
               {stats.users.map(u => (
                 <div key={u.id} style={{ background: '#0d0d0d', border: `1px solid ${u.is_blocked ? '#3a1a1a' : '#1e1e1e'}`, borderRadius: 12, padding: '12px 14px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{ width: 34, height: 34, borderRadius: '50%', background: '#161616', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>😊</div>
+                  <div style={{ width: 34, height: 34, borderRadius: '50%', background: '#161616', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>
+                    {u.role === 'owner' ? '🏪' : '😊'}
+                  </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', gap: 8, ...F }}>
+                    <div style={{ fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', ...F }}>
                       {u.nickname}
+                      <span style={{ fontSize: 10, background: u.role === 'owner' ? '#c8a96e22' : '#22222255', color: u.role === 'owner' ? '#c8a96e' : '#666', borderRadius: 4, padding: '2px 6px', fontWeight: 700 }}>
+                        {u.role === 'owner' ? '점주' : '일반'}
+                      </span>
                       {u.is_blocked && <span style={{ fontSize: 10, background: '#3a1a1a', color: '#e05a5a', borderRadius: 4, padding: '2px 6px' }}>차단됨</span>}
                     </div>
                     <div style={{ fontSize: 10, color: '#444', marginTop: 2, ...F }}>{new Date(u.created_at).toLocaleString('ko-KR')} 가입</div>
                   </div>
-                  <button onClick={() => toggleBlock(u.id, !u.is_blocked, u.nickname)} style={{ background: u.is_blocked ? '#1a2a1a' : '#2a1a1a', border: `1px solid ${u.is_blocked ? '#2a3a2a' : '#3a2a2a'}`, color: u.is_blocked ? '#6fcf97' : '#e05a5a', borderRadius: 8, padding: '6px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer', ...F }}>
-                    {u.is_blocked ? '차단 해제' : '차단'}
-                  </button>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button
+                      onClick={() => setUserRole(u.id, u.role === 'owner' ? 'user' : 'owner', u.nickname)}
+                      style={{ background: u.role === 'owner' ? '#1a1a2a' : '#1a2a1a', border: `1px solid ${u.role === 'owner' ? '#2a2a3a' : '#2a3a2a'}`, color: u.role === 'owner' ? '#888' : '#c8a96e', borderRadius: 8, padding: '6px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer', ...F }}>
+                      {u.role === 'owner' ? '점주 해제' : '점주 승격'}
+                    </button>
+                    <button onClick={() => toggleBlock(u.id, !u.is_blocked, u.nickname)} style={{ background: u.is_blocked ? '#1a2a1a' : '#2a1a1a', border: `1px solid ${u.is_blocked ? '#2a3a2a' : '#3a2a2a'}`, color: u.is_blocked ? '#6fcf97' : '#e05a5a', borderRadius: 8, padding: '6px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer', ...F }}>
+                      {u.is_blocked ? '해제' : '차단'}
+                    </button>
+                  </div>
                 </div>
               ))}
               {stats.users.length === 0 && <div style={{ color: '#444', textAlign: 'center', padding: 40, ...F }}>사용자가 없어요</div>}

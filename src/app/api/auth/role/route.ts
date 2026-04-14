@@ -20,5 +20,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ role: 'admin', userId: user.id, email: user.email })
   }
 
-  return NextResponse.json({ role: 'owner', userId: user.id, email: user.email })
+  // DB users 테이블에서 role 확인
+  const { data: dbUser } = await supabase.from('users').select('role').eq('id', user.id).single()
+  const role = dbUser?.role || 'user'
+
+  return NextResponse.json({ role, userId: user.id, email: user.email })
 }

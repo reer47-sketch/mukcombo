@@ -41,9 +41,9 @@ export async function POST(req: NextRequest) {
   // ── 통계 ──
   if (action === 'stats') {
     const [stores, posts, users] = await Promise.all([
-      supabase.from('stores').select('id, name', { count: 'exact' }),
+      supabase.from('stores').select('id, name, emoji, subscription_status, is_premium, owner_id', { count: 'exact' }),
       supabase.from('posts').select('id, store_id, likes, created_at', { count: 'exact' }),
-      supabase.from('users').select('id, nickname, is_blocked, created_at', { count: 'exact' }),
+      supabase.from('users').select('id, nickname, is_blocked, role, created_at', { count: 'exact' }),
     ])
     return NextResponse.json({
       success: true,
@@ -61,6 +61,23 @@ export async function POST(req: NextRequest) {
   // ── 사용자 차단 ──
   if (action === 'blockUser') {
     const { error } = await supabase.from('users').update({ is_blocked: body.blocked }).eq('id', body.userId)
+    if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 })
+    return NextResponse.json({ success: true })
+  }
+
+  // ── 사용자 역할 변경 ──
+  if (action === 'setUserRole') {
+    const { error } = await supabase.from('users').update({ role: body.role }).eq('id', body.userId)
+    if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 })
+    return NextResponse.json({ success: true })
+  }
+
+  // ── 가게 구독 상태 / 프리미엄 변경 ──
+  if (action === 'setStoreStatus') {
+    const updates: Record<string, unknown> = {}
+    if (body.subscription_status !== undefined) updates.subscription_status = body.subscription_status
+    if (body.is_premium !== undefined) updates.is_premium = body.is_premium
+    const { error } = await supabase.from('stores').update(updates).eq('id', body.storeId)
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 })
     return NextResponse.json({ success: true })
   }
