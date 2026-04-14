@@ -683,23 +683,22 @@ export default function DashboardTab({ lang }: { lang: Lang }) {
           {adminTab === 'categories' && (() => {
             // 그룹 순서 변경 헬퍼
             const moveGroup = (groupKey: string, dir: -1 | 1) => {
+              // sort_order 기준으로 정렬된 상태에서 그룹 순서 파악
+              const sorted = [...foodCategories].sort((a, b) => a.sort_order - b.sort_order)
               const groups: string[] = []
               const seen = new Set<string>()
-              foodCategories.forEach(fc => { if (!seen.has(fc.group_ko)) { seen.add(fc.group_ko); groups.push(fc.group_ko) } })
+              sorted.forEach(fc => { if (!seen.has(fc.group_ko)) { seen.add(fc.group_ko); groups.push(fc.group_ko) } })
               const gi = groups.indexOf(groupKey)
               const target = gi + dir
               if (target < 0 || target >= groups.length) return
-              // 두 그룹의 모든 아이템 swap
-              const aItems = foodCategories.filter(fc => fc.group_ko === groups[gi])
-              const bItems = foodCategories.filter(fc => fc.group_ko === groups[target])
-              const aOrders = aItems.map(fc => fc.sort_order).sort((x, y) => x - y)
-              const bOrders = bItems.map(fc => fc.sort_order).sort((x, y) => x - y)
-              const allOrders = [...aOrders, ...bOrders].sort((x, y) => x - y)
-              const newItems = dir === -1
-                ? [...bItems, ...aItems]
-                : [...aItems, ...bItems]
+              const aItems = sorted.filter(fc => fc.group_ko === groups[gi])
+              const bItems = sorted.filter(fc => fc.group_ko === groups[target])
+              // 두 그룹이 차지하던 sort_order 값들을 합쳐서 재배분
+              const allOrders = [...aItems, ...bItems].map(fc => fc.sort_order).sort((x, y) => x - y)
+              // dir=-1(위로): a가 앞으로 → aItems 먼저, dir=1(아래로): b가 앞으로 → bItems 먼저
+              const ordered = dir === -1 ? [...aItems, ...bItems] : [...bItems, ...aItems]
               const updated = foodCategories.map(fc => {
-                const idx = newItems.findIndex(n => n.id === fc.id)
+                const idx = ordered.findIndex(n => n.id === fc.id)
                 if (idx === -1) return fc
                 return { ...fc, sort_order: allOrders[idx] }
               })
