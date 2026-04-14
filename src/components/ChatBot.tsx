@@ -29,6 +29,12 @@ interface Message {
   cards?: RecommendCard[]
 }
 
+interface StoreDetail {
+  menu_names: Record<string, { ko?: string; en?: string } | string>
+  prices: Record<string, string>
+  categories: Record<string, string[]>
+}
+
 const F: React.CSSProperties = { fontFamily: "'Noto Sans KR', sans-serif" }
 
 const GROUP_OPTS = [
@@ -53,6 +59,153 @@ const INIT_MESSAGES: Message[] = [
   },
 ]
 
+function StoreModal({ card, lang, onClose }: { card: RecommendCard; lang: Lang; onClose: () => void }) {
+  const [detail, setDetail] = useState<StoreDetail | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    // matchedMenus가 비어있을 때(아무거나 선택)만 상세 fetch
+    if (card.matchedMenus.length === 0) {
+      setLoading(true)
+      fetch(`/api/stores/${card.store.id}`)
+        .then(r => r.json())
+        .then(d => { setDetail(d); setLoading(false) })
+        .catch(() => setLoading(false))
+    }
+  }, [card])
+
+  // 메뉴 목록 구성
+  const menuRows: { nameKo: string; nameEn: string; price: string; category: string }[] = []
+
+  if (card.matchedMenus.length > 0) {
+    card.matchedMenus.forEach(m => {
+      m.menus.forEach(menu => {
+        menuRows.push({ nameKo: menu.nameKo, nameEn: menu.nameEn, price: menu.price, category: m.storeCategory })
+      })
+    })
+  } else if (detail) {
+    const menuNames = detail.menu_names || {}
+    const prices = detail.prices || {}
+    const categories = detail.categories || {}
+
+    // 카테고리별 메뉴 매핑
+    const menuCatMap: Record<string, string> = {}
+    Object.entries(categories).forEach(([catName, list]) => {
+      if (Array.isArray(list)) list.forEach(key => { menuCatMap[key] = catName })
+    })
+
+    Object.entries(menuNames).forEach(([key, val]) => {
+      const ko = typeof val === 'object' ? (val.ko || key) : key
+      const en = typeof val === 'object' ? (val.en || '') : ''
+      menuRows.push({ nameKo: ko, nameEn: en, price: prices[key] || '', category: menuCatMap[key] || '' })
+    })
+  }
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)',
+        display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+        zIndex: 1000, ...F,
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: '#111', borderRadius: '20px 20px 0 0',
+          width: '100%', maxWidth: 480, maxHeight: '80vh',
+          display: 'flex', flexDirection: 'column',
+          border: '1px solid #222', borderBottom: 'none',
+        }}
+      >
+        {/* 헤더 */}
+        <div style={{ padding: '16px 16px 12px', borderBottom: '1px solid #1e1e1e', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+            <span style={{ fontSize: 28 }}>{card.store.emoji}</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontWeight: 700, fontSize: 16, color: '#f0ece4', ...F }}>
+                  {lang === 'ko' ? card.store.name : (card.store.name_en || card.store.name)}
+                </span>
+                {card.store.is_premium && (
+                  <span style={{ fontSize: 10, background: '#f2994a22', color: '#f2994a', borderRadius: 6, padding: '2px 7px', fontWeight: 700, ...F }}>PLUS</span>
+                )}
+              </div>
+              <div style={{ fontSize: 11, color: '#555', marginTop: 2, ...F }}>❤️ {card.totalLikes}</div>
+            </div>
+            <button
+              onClick={onClose}
+              style={{ background: 'none', border: 'none', color: '#555', fontSize: 20, cursor: 'pointer', padding: '0 4px', lineHeight: 1 }}
+            >×</button>
+          </div>
+          {card.store.address && (
+            <div style={{ fontSize: 12, color: '#666', ...F }}>
+              📍 {lang === 'ko' ? card.store.address : (card.store.address_en || card.store.address)}
+            </div>
+          )}
+          {card.store.map_url && (
+            <a
+              href={card.store.map_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ display: 'inline-block', marginTop: 8, fontSize: 11, color: '#c8a96e', textDecoration: 'none', background: '#c8a96e15', borderRadius: 8, padding: '4px 10px', ...F }}
+            >
+              🗺️ 지도 보기
+            </a>
+          )}
+        </div>
+
+        {/* 메뉴 리스트 */}
+        <div style={{ overflowY: 'auto', padding: '12px 16px 24px' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#555', letterSpacing: 1, marginBottom: 10, textTransform: 'uppercase', ...F }}>MENU</div>
+
+          {loading && (
+            <div style={{ textAlign: 'center', color: '#444', fontSize: 13, padding: '20px 0', ...F }}>불러오는 중...</div>
+          )}
+
+          {!loading && menuRows.length === 0 && (
+            <div style={{ textAlign: 'center', color: '#444', fontSize: 13, padding: '20px 0', ...F }}>메뉴 정보가 없어요</div>
+          )}
+
+          {!loading && menuRows.length > 0 && (() => {
+            // 카테고리별 그룹핑
+            const grouped: Record<string, typeof menuRows> = {}
+            menuRows.forEach(m => {
+              const key = m.category || '기타'
+              if (!grouped[key]) grouped[key] = []
+              grouped[key].push(m)
+            })
+            return Object.entries(grouped).map(([cat, items]) => (
+              <div key={cat} style={{ marginBottom: 14 }}>
+                {cat && cat !== '기타' && (
+                  <div style={{ fontSize: 11, color: '#c8a96e', fontWeight: 700, marginBottom: 6, ...F }}>{cat}</div>
+                )}
+                {items.map((menu, mi) => (
+                  <div key={mi} style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    padding: '8px 10px', borderRadius: 8, background: mi % 2 === 0 ? '#161616' : 'transparent',
+                  }}>
+                    <div>
+                      <div style={{ fontSize: 13, color: '#e0dcd4', ...F }}>{menu.nameKo}</div>
+                      {menu.nameEn && <div style={{ fontSize: 11, color: '#444', marginTop: 1, ...F }}>{menu.nameEn}</div>}
+                    </div>
+                    {menu.price && (
+                      <div style={{ fontSize: 13, color: '#c8a96e', fontWeight: 600, flexShrink: 0, marginLeft: 12, ...F }}>
+                        {Number(menu.price).toLocaleString()}원
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ))
+          })()}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function ChatBot({ lang }: { lang: Lang }) {
   const [categories, setCategories] = useState<FoodCategory[]>([])
   const [posts, setPosts] = useState<Post[]>([])
@@ -61,6 +214,7 @@ export default function ChatBot({ lang }: { lang: Lang }) {
   const [answers, setAnswers] = useState<Record<string, string>>({})
   const [typing, setTyping] = useState(false)
   const [done, setDone] = useState(false)
+  const [selectedCard, setSelectedCard] = useState<RecommendCard | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -89,7 +243,6 @@ export default function ChatBot({ lang }: { lang: Lang }) {
     let storeResults: StoreResult[] = []
 
     if (catId === 'any') {
-      // 전체 가게 가져오기
       const res = await fetch('/api/stores')
       const stores = await res.json()
       storeResults = (Array.isArray(stores) ? stores : []).map((s: any) => ({ store: s, matchedMenus: [] }))
@@ -106,7 +259,6 @@ export default function ChatBot({ lang }: { lang: Lang }) {
       return { store, totalLikes, topReview: topPost?.review || '', matchedMenus }
     })
 
-    // 정렬: 플러스 가게 우선 → 좋아요 합산 순
     cards.sort((a, b) => {
       if (a.store.is_premium && !b.store.is_premium) return -1
       if (!a.store.is_premium && b.store.is_premium) return 1
@@ -216,10 +368,17 @@ export default function ChatBot({ lang }: { lang: Lang }) {
                     😢 조건에 맞는 가게가 없어요. 다시 검색해보세요!
                   </div>
                 ) : msg.cards.map((card, ci) => (
-                  <div key={card.store.id} style={{
-                    background: '#111', border: `1px solid ${ci === 0 ? '#c8a96e44' : '#1e1e1e'}`,
-                    borderRadius: 12, padding: '12px 14px', marginBottom: 8,
-                  }}>
+                  <div
+                    key={card.store.id}
+                    onClick={() => setSelectedCard(card)}
+                    style={{
+                      background: '#111', border: `1px solid ${ci === 0 ? '#c8a96e44' : '#1e1e1e'}`,
+                      borderRadius: 12, padding: '12px 14px', marginBottom: 8,
+                      cursor: 'pointer', transition: 'border-color 0.15s',
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.borderColor = '#c8a96e66')}
+                    onMouseLeave={e => (e.currentTarget.style.borderColor = ci === 0 ? '#c8a96e44' : '#1e1e1e')}
+                  >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                       {ci === 0 && <span style={{ fontSize: 10, background: '#c8a96e22', color: '#c8a96e', borderRadius: 6, padding: '2px 7px', fontWeight: 700, letterSpacing: 1, flexShrink: 0, ...F }}>TOP</span>}
                       {card.store.is_premium && <span style={{ fontSize: 10, background: '#f2994a22', color: '#f2994a', borderRadius: 6, padding: '2px 7px', fontWeight: 700, flexShrink: 0, ...F }}>PLUS</span>}
@@ -231,8 +390,8 @@ export default function ChatBot({ lang }: { lang: Lang }) {
                           {card.store.address && <span> · 📍 {card.store.address.slice(0, 16)}{card.store.address.length > 16 ? '...' : ''}</span>}
                         </div>
                       </div>
+                      <span style={{ fontSize: 11, color: '#333', flexShrink: 0 }}>›</span>
                     </div>
-                    {/* 매칭된 메뉴 */}
                     {card.matchedMenus.length > 0 && (
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: card.topReview ? 8 : 0 }}>
                         {card.matchedMenus.flatMap(m => m.menus).slice(0, 4).map((menu, mi) => (
@@ -269,6 +428,10 @@ export default function ChatBot({ lang }: { lang: Lang }) {
         )}
         <div ref={bottomRef} />
       </div>
+
+      {selectedCard && (
+        <StoreModal card={selectedCard} lang={lang} onClose={() => setSelectedCard(null)} />
+      )}
 
       <style>{`
         @keyframes chatDot {
