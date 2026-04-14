@@ -121,14 +121,20 @@ export default function Home() {
   // 사용자
   const [currentUser, setCurrentUser] = useState<{ id: string; nickname: string } | null>(null)
   const [showNicknamePopup, setShowNicknamePopup] = useState(false)
-  const [ownerUser, setOwnerUser] = useState<{ id: string; email: string } | null>(null)
+  const [authUser, setAuthUser] = useState<{ id: string; email: string; role: string } | null>(null)
+  const [authChecked, setAuthChecked] = useState(false)
 
-  // 점주 로그인 상태 확인
+  // 로그인 상태 + 역할 확인
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
+    supabase.auth.getSession().then(async ({ data }) => {
       if (data.session?.user) {
-        setOwnerUser({ id: data.session.user.id, email: data.session.user.email || '' })
+        const res = await fetch('/api/auth/role', {
+          headers: { Authorization: `Bearer ${data.session.access_token}` }
+        })
+        const { role } = await res.json()
+        setAuthUser({ id: data.session.user.id, email: data.session.user.email || '', role })
       }
+      setAuthChecked(true)
     })
   }, [])
 
@@ -161,15 +167,17 @@ export default function Home() {
     }
   }, [])
 
-  // 닉네임 로컬스토리지 체크
+  // 닉네임 로컬스토리지 체크 (인증된 유저는 팝업 불필요)
   useEffect(() => {
+    if (!authChecked) return
+    if (authUser) return
     const stored = localStorage.getItem('mukcombo_user')
     if (stored) {
       try { setCurrentUser(JSON.parse(stored)) } catch { setShowNicknamePopup(true) }
     } else {
       setShowNicknamePopup(true)
     }
-  }, [])
+  }, [authChecked, authUser])
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -290,8 +298,12 @@ export default function Home() {
             <div style={{ fontSize: 9, color: '#444', letterSpacing: 3, marginTop: 3, fontFamily: "'Inter',sans-serif" }}>MUK-COMBO</div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {/* 닉네임 표시 */}
-            {currentUser && (
+            {/* 이름/역할 표시 */}
+            {authUser ? (
+              <div style={{ fontSize: 11, background: '#141414', border: '1px solid #222', borderRadius: 16, padding: '5px 12px', display: 'flex', alignItems: 'center', gap: 4, color: authUser.role === 'admin' ? '#e05a5a' : '#c8a96e' }}>
+                {authUser.role === 'admin' ? '🛡 Admin' : '🏪 점주'}
+              </div>
+            ) : currentUser && (
               <div onClick={() => setShowNicknamePopup(true)} style={{ fontSize: 11, color: '#888', cursor: 'pointer', background: '#141414', border: '1px solid #222', borderRadius: 16, padding: '5px 12px', display: 'flex', alignItems: 'center', gap: 4 }}>
                 😊 {currentUser.nickname}
               </div>
