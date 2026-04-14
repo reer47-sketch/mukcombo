@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState, useRef } from 'react'
+import ChatBot from '@/components/ChatBot'
 
 interface FoodCategory { id: string; name_ko: string; name_en: string }
 interface MatchedMenu { foodCategoryId: string; storeCategory: string; menus: { nameKo: string; nameEn: string; price: string }[] }
@@ -15,6 +16,8 @@ interface MenuSearchResult {
 interface Props { lang: 'ko' | 'en'; F: React.CSSProperties }
 
 export default function FoodSearch({ lang, F }: Props) {
+  const [mode, setMode] = useState<'chat' | 'search'>('chat')
+
   // 범용 카테고리 검색
   const [categories, setCategories] = useState<FoodCategory[]>([])
   const [selected, setSelected] = useState<string[]>([])
@@ -88,6 +91,30 @@ export default function FoodSearch({ lang, F }: Props) {
 
   return (
     <div style={{ paddingBottom: 60 }}>
+
+      {/* ── 모드 토글 ── */}
+      <div style={{ display: 'flex', background: '#0d0d0d', borderBottom: '1px solid #161616', padding: '10px 20px', gap: 6 }}>
+        <button onClick={() => setMode('chat')} style={{
+          flex: 1, padding: '8px', background: mode === 'chat' ? '#c8a96e' : '#141414',
+          color: mode === 'chat' ? '#080808' : '#666', border: 'none', borderRadius: 8,
+          fontSize: 13, fontWeight: 700, cursor: 'pointer', ...F,
+        }}>🤖 AI 추천</button>
+        <button onClick={() => setMode('search')} style={{
+          flex: 1, padding: '8px', background: mode === 'search' ? '#c8a96e' : '#141414',
+          color: mode === 'search' ? '#080808' : '#666', border: 'none', borderRadius: 8,
+          fontSize: 13, fontWeight: 700, cursor: 'pointer', ...F,
+        }}>🔍 직접 검색</button>
+      </div>
+
+      {/* ── 챗봇 ── */}
+      {mode === 'chat' && (
+        <div style={{ paddingTop: 16 }}>
+          <ChatBot lang={lang} />
+        </div>
+      )}
+
+      {/* ── 직접 검색 ── */}
+      {mode === 'search' && <>
 
       {/* ── 먹메뉴명 검색 ── */}
       <div style={{ padding: '20px 20px 0' }}>
@@ -297,6 +324,7 @@ export default function FoodSearch({ lang, F }: Props) {
           </div>
         )}
       </div>
+      </> }
     </div>
   )
 }
