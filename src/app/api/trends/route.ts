@@ -171,6 +171,33 @@ async function fetchYoutubeTrends(): Promise<YoutubeTrendItem[]> {
   }
 }
 
+// ── DEBUG handler ─────────────────────────────────────────────────────────
+export async function POST() {
+  const clientId = process.env.NAVER_CLIENT_ID
+  const clientSecret = process.env.NAVER_CLIENT_SECRET
+  if (!clientId || !clientSecret) {
+    return NextResponse.json({ error: 'keys missing', clientId: !!clientId, clientSecret: !!clientSecret })
+  }
+  const today = new Date()
+  const endDate = toYMD(today)
+  const startDate = toYMD(new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000))
+  const res = await fetch('https://openapi.naver.com/v1/datalab/search', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json; charset=UTF-8',
+      'X-Naver-Client-Id': clientId,
+      'X-Naver-Client-Secret': clientSecret,
+    },
+    body: JSON.stringify({
+      startDate, endDate, timeUnit: 'date',
+      keywordGroups: [{ groupName: '치킨', keywords: ['치킨'] }],
+    }),
+    next: { revalidate: 0 },
+  })
+  const text = await res.text()
+  return NextResponse.json({ status: res.status, body: text.slice(0, 500) })
+}
+
 // ── GET handler ───────────────────────────────────────────────────────────
 export async function GET() {
   const today = toYMD(new Date())
