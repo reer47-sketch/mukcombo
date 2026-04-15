@@ -205,23 +205,24 @@ export default function MenuEditor({ store, t, F, onSave }: Props) {
                   const delMenu = () => sec.menus.length > 1 && updateSection(si, { ...sec, menus: sec.menus.filter((_, i) => i !== mi) })
                   return (
                     <div key={menu.id} style={{ background: '#111', border: '1px solid #1e1e1e', borderRadius: 10, marginBottom: 8, padding: '10px 10px 8px' }}>
-                      {/* 메뉴 입력 행 */}
-                      <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 8 }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      {/* 1행: 순서 버튼 + 메뉴명 + EN + 삭제 */}
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 6 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flexShrink: 0 }}>
                           {arrowBtn('▲', () => updateSection(si, { ...sec, menus: moveItem(sec.menus, mi, -1) }), mi === 0)}
                           {arrowBtn('▼', () => updateSection(si, { ...sec, menus: moveItem(sec.menus, mi, 1) }), mi === sec.menus.length - 1)}
                         </div>
                         <input value={menu.nameKo} onChange={e => updMenu({ ...menu, nameKo: e.target.value })}
-                          placeholder='메뉴명' style={{ flex: 2.5, ...inputSt, fontWeight: 700, ...F }} />
+                          placeholder='메뉴명' style={{ flex: 1, ...inputSt, fontWeight: 700, ...F }} />
                         <input value={menu.nameEn} onChange={e => updMenu({ ...menu, nameEn: e.target.value })}
-                          placeholder='Menu (EN)' style={{ flex: 2.5, ...inputSt, color: '#c8a96e', ...F }} />
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 3, flex: 1.2 }}>
-                          <input value={menu.price} onChange={e => updMenu({ ...menu, price: e.target.value })}
-                            placeholder='가격' style={{ flex: 1, ...inputSt, textAlign: 'right', ...F }} />
-                          <span style={{ fontSize: 10, color: '#555', flexShrink: 0 }}>원</span>
-                        </div>
+                          placeholder='Menu (EN)' style={{ flex: 1, ...inputSt, color: '#c8a96e', ...F }} />
                         <button onClick={delMenu} disabled={sec.menus.length === 1}
                           style={{ width: 24, height: 24, borderRadius: '50%', border: 'none', background: sec.menus.length === 1 ? '#141414' : '#2a1a1a', color: sec.menus.length === 1 ? '#333' : '#e05a5a', cursor: sec.menus.length === 1 ? 'default' : 'pointer', fontSize: 11, flexShrink: 0 }}>✕</button>
+                      </div>
+                      {/* 2행: 가격 */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, paddingLeft: 50 }}>
+                        <input value={menu.price} onChange={e => updMenu({ ...menu, price: e.target.value })}
+                          placeholder='가격 입력' style={{ width: 120, ...inputSt, textAlign: 'right', ...F }} />
+                        <span style={{ fontSize: 12, color: '#555', flexShrink: 0, ...F }}>원</span>
                       </div>
 
                       {/* 카테고리 피커 */}

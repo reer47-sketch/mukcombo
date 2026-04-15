@@ -41,6 +41,12 @@ const inputSt: React.CSSProperties = {
   color: '#f0ece4', fontSize: 13, outline: 'none', width: '100%', boxSizing: 'border-box', ...F,
 }
 
+const STORE_EMOJIS = [
+  '🍜','🍣','🍕','🍔','🍗','🍱','🍛','🍝',
+  '🥩','🥗','🍺','🍷','☕','🍰','🥐','🫕',
+  '🍲','🥘','🍤','🌮','🥟','🍞','🍙','🍦',
+]
+
 declare global {
   interface Window {
     daum: {
@@ -173,11 +179,23 @@ function StoreForm({ userId, onSaved, onCancel }: { userId?: string; onSaved: ()
       {/* 기본 정보 */}
       <div style={{ background: '#111', borderRadius: 10, padding: 16, marginBottom: 16 }}>
         <div style={{ fontSize: 11, color: '#c8a96e', fontWeight: 700, letterSpacing: 1, marginBottom: 12, ...F }}>가게 기본 정보</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '60px 1fr 1fr', gap: 8, marginBottom: 8 }}>
-          <div>
-            <div style={{ fontSize: 10, color: '#666', marginBottom: 4, ...F }}>이모지</div>
-            <input value={emoji} onChange={e => setEmoji(e.target.value)} style={{ ...inputSt, textAlign: 'center', fontSize: 20 }} />
+        {/* 이모지 피커 */}
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 10, color: '#666', marginBottom: 6, ...F }}>이모지</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+            {STORE_EMOJIS.map(e => (
+              <button
+                key={e} type="button" onClick={() => setEmoji(e)}
+                style={{
+                  width: 36, height: 36, fontSize: 18, borderRadius: 8, border: emoji === e ? '2px solid #c8a96e' : '1px solid #2a2a2a',
+                  background: emoji === e ? '#1a1200' : '#141414', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+              >{e}</button>
+            ))}
           </div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
           <div>
             <div style={{ fontSize: 10, color: '#666', marginBottom: 4, ...F }}>🇰🇷 가게명</div>
             <input value={storeName.ko} onChange={e => setStoreName({ ...storeName, ko: e.target.value })} placeholder="고르다" style={{ ...inputSt, fontWeight: 700 }} />
@@ -241,18 +259,20 @@ function StoreForm({ userId, onSaved, onCancel }: { userId?: string; onSaved: ()
               const delMenu = () => sec.menus.length > 1 && updateSection(si, { ...sec, menus: sec.menus.filter((_, i) => i !== mi) })
               return (
                 <div key={menu.id} style={{ background: '#111', border: '1px solid #1e1e1e', borderRadius: 10, marginBottom: 8, padding: '10px 10px 8px' }}>
-                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 8 }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {/* 1행: 순서 버튼 + 메뉴명 + EN + 삭제 */}
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 6 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flexShrink: 0 }}>
                       {arrowBtn('▲', () => updateSection(si, { ...sec, menus: moveItem(sec.menus, mi, -1) }), mi === 0)}
                       {arrowBtn('▼', () => updateSection(si, { ...sec, menus: moveItem(sec.menus, mi, 1) }), mi === sec.menus.length - 1)}
                     </div>
-                    <input value={menu.nameKo} onChange={e => updMenu({ ...menu, nameKo: e.target.value })} placeholder="메뉴명" style={{ flex: 2.5, ...inputSt, fontWeight: 700 }} />
-                    <input value={menu.nameEn} onChange={e => updMenu({ ...menu, nameEn: e.target.value })} placeholder="Menu (EN)" style={{ flex: 2.5, ...inputSt, color: '#c8a96e' }} />
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 3, flex: 1.2 }}>
-                      <input value={menu.price} onChange={e => updMenu({ ...menu, price: e.target.value })} placeholder="가격" style={{ flex: 1, ...inputSt, textAlign: 'right' }} />
-                      <span style={{ fontSize: 10, color: '#555', flexShrink: 0 }}>원</span>
-                    </div>
+                    <input value={menu.nameKo} onChange={e => updMenu({ ...menu, nameKo: e.target.value })} placeholder="메뉴명" style={{ flex: 1, ...inputSt, fontWeight: 700 }} />
+                    <input value={menu.nameEn} onChange={e => updMenu({ ...menu, nameEn: e.target.value })} placeholder="Menu (EN)" style={{ flex: 1, ...inputSt, color: '#c8a96e' }} />
                     <button onClick={delMenu} disabled={sec.menus.length === 1} style={{ width: 24, height: 24, borderRadius: '50%', border: 'none', background: sec.menus.length === 1 ? '#141414' : '#2a1a1a', color: sec.menus.length === 1 ? '#333' : '#e05a5a', cursor: sec.menus.length === 1 ? 'default' : 'pointer', fontSize: 11, flexShrink: 0 }}>✕</button>
+                  </div>
+                  {/* 2행: 가격 */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, paddingLeft: 50 }}>
+                    <input value={menu.price} onChange={e => updMenu({ ...menu, price: e.target.value })} placeholder="가격 입력" style={{ width: 120, ...inputSt, textAlign: 'right' }} />
+                    <span style={{ fontSize: 12, color: '#555', ...F }}>원</span>
                   </div>
                   <CategoryPicker
                     menuName={menu.nameKo}
