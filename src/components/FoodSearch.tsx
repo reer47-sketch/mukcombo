@@ -3,6 +3,10 @@ import { useEffect, useState, useRef } from 'react'
 import ChatBot from '@/components/ChatBot'
 
 interface FoodCategory { id: string; name_ko: string; name_en: string; group_ko: string; group_en: string; group_emoji: string }
+interface NaverTrendItem { keyword: string; score: number }
+interface GoogleTrendItem { keyword: string; traffic?: string }
+interface YoutubeTrendItem { title: string; videoId: string; thumbnail: string; channelTitle: string }
+interface DailyTrends { naver: NaverTrendItem[]; google: GoogleTrendItem[]; youtube: YoutubeTrendItem[]; fetchedAt?: string }
 interface MatchedMenu { foodCategoryId: string; storeCategory: string; menus: { nameKo: string; nameEn: string; price: string }[] }
 interface SearchResult {
   store: { id: string; name: string; name_en: string; emoji: string; address: string; address_en: string; map_url: string }
@@ -17,6 +21,18 @@ interface Props { lang: 'ko' | 'en'; F: React.CSSProperties }
 
 export default function FoodSearch({ lang, F }: Props) {
   const [mode, setMode] = useState<'chat' | 'search'>('chat')
+
+  // ── 오늘의 트렌드 ────────────────────────────────────────────
+  const [trends, setTrends] = useState<DailyTrends | null>(null)
+  const [trendsLoading, setTrendsLoading] = useState(true)
+  const [trendsTab, setTrendsTab] = useState<'naver' | 'google' | 'youtube'>('naver')
+
+  useEffect(() => {
+    fetch('/api/trends').then(r => r.json()).then(d => {
+      if (d && !d.error) setTrends(d)
+      setTrendsLoading(false)
+    }).catch(() => setTrendsLoading(false))
+  }, [])
 
   // 범용 카테고리 검색
   const [categories, setCategories] = useState<FoodCategory[]>([])
@@ -104,6 +120,110 @@ export default function FoodSearch({ lang, F }: Props) {
           color: mode === 'search' ? '#080808' : '#666', border: 'none', borderRadius: 8,
           fontSize: 13, fontWeight: 700, cursor: 'pointer', ...F,
         }}>🔍 직접 검색</button>
+      </div>
+
+      {/* ── 오늘의 트렌드 ── */}
+      <div style={{ padding: '16px 20px 0' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+          <span style={{ fontSize: 16 }}>🔥</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: '#f0ece4', ...F }}>
+            {lang === 'ko' ? '오늘의 트렌드' : "Today's Trends"}
+          </span>
+          <span style={{ fontSize: 10, color: '#444', marginLeft: 'auto', ...F }}>
+            {trends?.fetchedAt ? new Date(trends.fetchedAt).toLocaleDateString('ko', { month: 'numeric', day: 'numeric' }) : ''}
+          </span>
+        </div>
+
+        {/* 탭 */}
+        <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
+          {(['naver', 'google', 'youtube'] as const).map(tab => {
+            const labels = { naver: '네이버', google: '구글', youtube: '유튜브' }
+            const active = trendsTab === tab
+            return (
+              <button key={tab} onClick={() => setTrendsTab(tab)} style={{
+                padding: '5px 12px', fontSize: 11, fontWeight: active ? 700 : 400, cursor: 'pointer',
+                background: active ? '#c8a96e22' : 'transparent',
+                border: `1px solid ${active ? '#c8a96e' : '#222'}`,
+                borderRadius: 20, color: active ? '#c8a96e' : '#555', ...F,
+              }}>{labels[tab]}</button>
+            )
+          })}
+        </div>
+
+        {/* 탭 콘텐츠 */}
+        <div style={{ minHeight: 60, marginBottom: 16 }}>
+          {trendsLoading ? (
+            <div style={{ color: '#444', fontSize: 12, paddingTop: 8, ...F }}>불러오는 중...</div>
+          ) : trendsTab === 'naver' ? (
+            <div>
+              {!trends?.naver?.length ? (
+                <div style={{ fontSize: 11, color: '#444', ...F }}>
+                  {lang === 'ko' ? 'NAVER_CLIENT_ID / SECRET을 .env.local에 설정해주세요' : 'Set NAVER_CLIENT_ID / SECRET in .env.local'}
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {trends.naver.map((item, i) => (
+                    <div key={item.keyword} style={{
+                      display: 'flex', alignItems: 'center', gap: 5,
+                      background: '#0d0d0d', border: '1px solid #1e1e1e',
+                      borderRadius: 20, padding: '5px 10px',
+                    }}>
+                      <span style={{ fontSize: 10, color: i < 3 ? '#c8a96e' : '#444', fontWeight: 700, minWidth: 16 }}>{i + 1}</span>
+                      <span style={{ fontSize: 13, color: '#f0ece4', ...F }}>{item.keyword}</span>
+                      {item.score > 1.2 && (
+                        <span style={{ fontSize: 9, color: '#e05a5a', fontWeight: 700 }}>↑</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : trendsTab === 'google' ? (
+            <div>
+              {!trends?.google?.length ? (
+                <div style={{ fontSize: 11, color: '#444', ...F }}>구글 트렌드 데이터를 가져올 수 없어요</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {trends.google.map((item, i) => (
+                    <div key={item.keyword} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 10, color: i < 3 ? '#c8a96e' : '#444', fontWeight: 700, minWidth: 18 }}>{i + 1}</span>
+                      <span style={{ fontSize: 13, color: '#f0ece4', flex: 1, ...F }}>{item.keyword}</span>
+                      {item.traffic && <span style={{ fontSize: 10, color: '#555', ...F }}>{item.traffic}</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div>
+              {!trends?.youtube?.length ? (
+                <div style={{ fontSize: 11, color: '#444', lineHeight: 1.6, ...F }}>
+                  {lang === 'ko' ? 'YOUTUBE_API_KEY를 .env.local에 설정하면 활성화됩니다' : 'Set YOUTUBE_API_KEY in .env.local to enable'}
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {trends.youtube.slice(0, 6).map((item) => (
+                    <a key={item.videoId} href={`https://www.youtube.com/watch?v=${item.videoId}`}
+                      target="_blank" rel="noreferrer"
+                      style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
+                      {item.thumbnail && (
+                        <img src={item.thumbnail} alt="" style={{ width: 56, height: 42, borderRadius: 4, objectFit: 'cover', flexShrink: 0 }} />
+                      )}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12, color: '#f0ece4', lineHeight: 1.3, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', ...F }}>
+                          {item.title}
+                        </div>
+                        <div style={{ fontSize: 10, color: '#555', marginTop: 2, ...F }}>{item.channelTitle}</div>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div style={{ height: 1, background: '#161616', marginBottom: 0 }} />
       </div>
 
       {/* ── 챗봇 ── */}
