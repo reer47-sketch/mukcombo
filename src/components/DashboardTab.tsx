@@ -337,6 +337,10 @@ export default function DashboardTab({ lang }: { lang: Lang }) {
   const [adminTab, setAdminTab] = useState<'overview' | 'stores' | 'posts' | 'users' | 'categories'>('overview')
   const [newCatKo, setNewCatKo] = useState('')
   const [newCatEn, setNewCatEn] = useState('')
+  const [newCatGroup, setNewCatGroup] = useState('') // 선택된 기존 그룹 key, '__new__' = 새 그룹
+  const [newGroup, setNewGroup] = useState({ ko: '', en: '', emoji: '' })
+  const [editingGroup, setEditingGroup] = useState<{ key: string; ko: string; en: string; emoji: string } | null>(null)
+  const [editingCat, setEditingCat] = useState<{ id: string; ko: string; en: string } | null>(null)
   const [orderDirty, setOrderDirty] = useState(false)
   const [orderSaving, setOrderSaving] = useState(false)
 
@@ -681,51 +685,46 @@ export default function DashboardTab({ lang }: { lang: Lang }) {
           )}
 
           {adminTab === 'categories' && (() => {
-            // 그룹 순서 변경 헬퍼
+            // ── 헬퍼: sort_order 기반 그룹 목록 ──
+            const sortedCats = [...foodCategories].sort((a, b) => a.sort_order - b.sort_order)
+            const groups: { key: string; emoji: string; ko: string; en: string; label: string; items: typeof foodCategories }[] = []
+            const seenG = new Set<string>()
+            sortedCats.forEach(fc => {
+              if (!seenG.has(fc.group_ko)) {
+                seenG.add(fc.group_ko)
+                groups.push({ key: fc.group_ko, emoji: fc.group_emoji || '', ko: fc.group_ko, en: fc.group_en || '', label: `${fc.group_emoji || ''} ${fc.group_ko || '기타'}`.trim(), items: [] })
+              }
+              groups[groups.findIndex(g => g.key === fc.group_ko)].items.push(fc)
+            })
+
+            // ── 헬퍼: 순서 이동 ──
             const moveGroup = (groupKey: string, dir: -1 | 1) => {
-              // sort_order 기준으로 정렬된 상태에서 그룹 순서 파악
-              const sorted = [...foodCategories].sort((a, b) => a.sort_order - b.sort_order)
-              const groups: string[] = []
-              const seen = new Set<string>()
-              sorted.forEach(fc => { if (!seen.has(fc.group_ko)) { seen.add(fc.group_ko); groups.push(fc.group_ko) } })
-              const gi = groups.indexOf(groupKey)
+              const gi = groups.findIndex(g => g.key === groupKey)
               const target = gi + dir
               if (target < 0 || target >= groups.length) return
-              const aItems = sorted.filter(fc => fc.group_ko === groups[gi])
-              const bItems = sorted.filter(fc => fc.group_ko === groups[target])
-              // 두 그룹이 차지하던 sort_order 값들을 합쳐서 재배분
+              const aItems = groups[gi].items
+              const bItems = groups[target].items
               const allOrders = [...aItems, ...bItems].map(fc => fc.sort_order).sort((x, y) => x - y)
-              // dir=-1(위로): a가 앞으로 → aItems 먼저, dir=1(아래로): b가 앞으로 → bItems 먼저
               const ordered = dir === -1 ? [...aItems, ...bItems] : [...bItems, ...aItems]
-              const updated = foodCategories.map(fc => {
+              setFoodCategories(foodCategories.map(fc => {
                 const idx = ordered.findIndex(n => n.id === fc.id)
-                if (idx === -1) return fc
-                return { ...fc, sort_order: allOrders[idx] }
-              })
-              setFoodCategories(updated)
+                return idx === -1 ? fc : { ...fc, sort_order: allOrders[idx] }
+              }))
               setOrderDirty(true)
             }
-
-            // 카테고리 순서 변경 헬퍼 (같은 그룹 내)
             const moveCat = (fcId: string, dir: -1 | 1) => {
               const fc = foodCategories.find(f => f.id === fcId)!
-              const groupItems = foodCategories.filter(f => f.group_ko === fc.group_ko)
-                .sort((a, b) => a.sort_order - b.sort_order)
-              const idx = groupItems.findIndex(f => f.id === fcId)
+              const gItems = [...foodCategories].filter(f => f.group_ko === fc.group_ko).sort((a, b) => a.sort_order - b.sort_order)
+              const idx = gItems.findIndex(f => f.id === fcId)
               const target = idx + dir
-              if (target < 0 || target >= groupItems.length) return
-              const aOrder = groupItems[idx].sort_order
-              const bOrder = groupItems[target].sort_order
-              const updated = foodCategories.map(f => {
-                if (f.id === groupItems[idx].id) return { ...f, sort_order: bOrder }
-                if (f.id === groupItems[target].id) return { ...f, sort_order: aOrder }
-                return f
-              })
-              setFoodCategories(updated)
+              if (target < 0 || target >= gItems.length) return
+              const a = gItems[idx].sort_order, b = gItems[target].sort_order
+              setFoodCategories(foodCategories.map(f =>
+                f.id === gItems[idx].id ? { ...f, sort_order: b } :
+                f.id === gItems[target].id ? { ...f, sort_order: a } : f
+              ))
               setOrderDirty(true)
             }
-
-            // 순서 저장
             const saveOrder = async () => {
               setOrderSaving(true)
               const res = await fetch('/api/food-categories', {
@@ -738,25 +737,70 @@ export default function DashboardTab({ lang }: { lang: Lang }) {
               setOrderSaving(false)
             }
 
-            // 그룹 목록 구성
-            const groups: { key: string; label: string; items: typeof foodCategories }[] = []
-            const seen = new Set<string>()
-            ;[...foodCategories].sort((a, b) => a.sort_order - b.sort_order).forEach(fc => {
-              if (!seen.has(fc.group_ko)) {
-                seen.add(fc.group_ko)
-                groups.push({ key: fc.group_ko, label: `${fc.group_emoji || ''} ${fc.group_ko || '기타'}`.trim(), items: [] })
-              }
-              groups[groups.findIndex(g => g.key === fc.group_ko)].items.push(fc)
-            })
-
             const arrowBtn = (label: string, onClick: () => void, disabled: boolean) => (
-              <button onClick={onClick} disabled={disabled} style={{ width: 24, height: 24, border: '1px solid #2a2a2a', borderRadius: 6, background: disabled ? '#111' : '#1a1a1a', color: disabled ? '#333' : '#888', cursor: disabled ? 'default' : 'pointer', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <button onClick={onClick} disabled={disabled} style={{ width: 22, height: 22, border: '1px solid #2a2a2a', borderRadius: 5, background: disabled ? '#111' : '#1a1a1a', color: disabled ? '#333' : '#888', cursor: disabled ? 'default' : 'pointer', fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 {label}
               </button>
             )
 
+            // 새 카테고리 추가 핸들러
+            const handleAddCat = async () => {
+              if (!newCatKo.trim()) return alert('카테고리명을 입력해주세요')
+              if (!newCatGroup) return alert('대분류를 선택해주세요')
+              let gko = '', gen = '', gemoji = ''
+              if (newCatGroup === '__new__') {
+                if (!newGroup.ko.trim()) return alert('새 대분류 이름을 입력해주세요')
+                gko = newGroup.ko.trim(); gen = newGroup.en.trim(); gemoji = newGroup.emoji.trim()
+              } else {
+                const g = groups.find(g => g.key === newCatGroup)!
+                gko = g.ko; gen = g.en; gemoji = g.emoji
+              }
+              const res = await fetch('/api/food-categories', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name_ko: newCatKo.trim(), name_en: newCatEn.trim() || newCatKo.trim(), group_ko: gko, group_en: gen, group_emoji: gemoji })
+              })
+              const json = await res.json()
+              if (json.id) {
+                setFoodCategories(prev => [...prev, json])
+                setNewCatKo(''); setNewCatEn(''); setNewCatGroup(''); setNewGroup({ ko: '', en: '', emoji: '' })
+              } else alert('오류: ' + JSON.stringify(json))
+            }
+
+            // 대분류 수정 저장
+            const saveGroup = async () => {
+              if (!editingGroup) return
+              const res = await fetch('/api/food-categories', {
+                method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'updateGroup', groupOld: editingGroup.key, ko: editingGroup.ko, en: editingGroup.en, emoji: editingGroup.emoji })
+              })
+              const json = await res.json()
+              if (json.success) {
+                setFoodCategories(prev => prev.map(fc =>
+                  fc.group_ko === editingGroup.key
+                    ? { ...fc, group_ko: editingGroup.ko, group_en: editingGroup.en, group_emoji: editingGroup.emoji }
+                    : fc
+                ))
+                setEditingGroup(null)
+              } else alert('저장 실패: ' + JSON.stringify(json))
+            }
+
+            // 카테고리 수정 저장
+            const saveCat = async () => {
+              if (!editingCat) return
+              const res = await fetch('/api/food-categories', {
+                method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'updateCategory', id: editingCat.id, name_ko: editingCat.ko, name_en: editingCat.en })
+              })
+              const json = await res.json()
+              if (json.success) {
+                setFoodCategories(prev => prev.map(fc => fc.id === editingCat.id ? { ...fc, name_ko: editingCat.ko, name_en: editingCat.en } : fc))
+                setEditingCat(null)
+              } else alert('저장 실패: ' + JSON.stringify(json))
+            }
+
             return (
               <div>
+                {/* 헤더 + 순서 저장 버튼 */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                   <div style={{ fontSize: 11, color: '#555', letterSpacing: 2, fontWeight: 700, ...F }}>먹검색 범용 카테고리 관리</div>
                   {orderDirty && (
@@ -766,73 +810,121 @@ export default function DashboardTab({ lang }: { lang: Lang }) {
                   )}
                 </div>
 
-                {/* 새 카테고리 추가 */}
+                {/* ── 새 카테고리 추가 폼 ── */}
                 <div style={{ background: '#0d0d0d', border: '1px solid #1e1e1e', borderRadius: 12, padding: 16, marginBottom: 16 }}>
-                  <div style={{ fontSize: 11, color: '#c8a96e', fontWeight: 700, marginBottom: 10, ...F }}>+ 새 카테고리 추가</div>
+                  <div style={{ fontSize: 11, color: '#c8a96e', fontWeight: 700, marginBottom: 12, ...F }}>+ 새 카테고리 추가</div>
+
+                  {/* 대분류 선택 */}
+                  <div style={{ marginBottom: 10 }}>
+                    <div style={{ fontSize: 10, color: '#666', marginBottom: 4, ...F }}>대분류 선택</div>
+                    <select value={newCatGroup} onChange={e => setNewCatGroup(e.target.value)}
+                      style={{ ...inp, color: newCatGroup ? '#f0ece4' : '#555' }}>
+                      <option value="">— 대분류 선택 —</option>
+                      {groups.map(g => <option key={g.key} value={g.key}>{g.label}</option>)}
+                      <option value="__new__">➕ 새 대분류 만들기</option>
+                    </select>
+                  </div>
+
+                  {/* 새 대분류 입력 (조건부) */}
+                  {newCatGroup === '__new__' && (
+                    <div style={{ background: '#111', borderRadius: 8, padding: 12, marginBottom: 10, border: '1px solid #2a2a2a' }}>
+                      <div style={{ fontSize: 10, color: '#c8a96e', fontWeight: 700, marginBottom: 8, ...F }}>새 대분류 정보</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '48px 1fr 1fr', gap: 8 }}>
+                        <div>
+                          <div style={{ fontSize: 10, color: '#666', marginBottom: 4, ...F }}>이모지</div>
+                          <input value={newGroup.emoji} onChange={e => setNewGroup(g => ({ ...g, emoji: e.target.value }))} placeholder="🍜" style={{ ...inp, textAlign: 'center', fontSize: 18 }} />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 10, color: '#666', marginBottom: 4, ...F }}>한국어</div>
+                          <input value={newGroup.ko} onChange={e => setNewGroup(g => ({ ...g, ko: e.target.value }))} placeholder="한식" style={inp} />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 10, color: '#666', marginBottom: 4, ...F }}>English</div>
+                          <input value={newGroup.en} onChange={e => setNewGroup(g => ({ ...g, en: e.target.value }))} placeholder="Korean" style={inp} />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 카테고리명 */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8 }}>
                     <div>
-                      <div style={{ fontSize: 10, color: '#666', marginBottom: 4, ...F }}>🇰🇷 한국어</div>
-                      <input value={newCatKo} onChange={e => setNewCatKo(e.target.value)} placeholder="예: 라멘/우동" style={inp} />
+                      <div style={{ fontSize: 10, color: '#666', marginBottom: 4, ...F }}>카테고리명 (한국어)</div>
+                      <input value={newCatKo} onChange={e => setNewCatKo(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddCat()} placeholder="예: 라멘" style={inp} />
                     </div>
                     <div>
-                      <div style={{ fontSize: 10, color: '#666', marginBottom: 4, ...F }}>🇺🇸 English</div>
-                      <input value={newCatEn} onChange={e => setNewCatEn(e.target.value)} placeholder="e.g. Ramen/Udon" style={inp} />
+                      <div style={{ fontSize: 10, color: '#666', marginBottom: 4, ...F }}>Category (English)</div>
+                      <input value={newCatEn} onChange={e => setNewCatEn(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddCat()} placeholder="e.g. Ramen" style={inp} />
                     </div>
                     <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-                      <button onClick={async () => {
-                        if (!newCatKo.trim()) return alert('한국어 이름을 입력해주세요')
-                        const res = await fetch('/api/food-categories', {
-                          method: 'POST', headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ name_ko: newCatKo.trim(), name_en: newCatEn.trim() || newCatKo.trim() })
-                        })
-                        const json = await res.json()
-                        if (json.id) { setFoodCategories(prev => [...prev, { ...json, sort_order: json.sort_order ?? prev.length + 1 }]); setNewCatKo(''); setNewCatEn('') }
-                        else alert('오류: ' + JSON.stringify(json))
-                      }} style={{ padding: '10px 14px', background: '#c8a96e', color: '#080808', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', ...F }}>
-                        추가
-                      </button>
+                      <button onClick={handleAddCat} style={{ padding: '10px 14px', background: '#c8a96e', color: '#080808', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', ...F }}>추가</button>
                     </div>
                   </div>
                 </div>
 
-                {/* 그룹 + 카테고리 목록 */}
+                {/* ── 그룹 + 카테고리 목록 ── */}
                 {foodCategories.length === 0
                   ? <div style={{ color: '#444', textAlign: 'center', padding: 40, ...F }}>카테고리가 없어요</div>
                   : groups.map((group, gi) => (
                     <div key={group.key} style={{ marginBottom: 14 }}>
+
                       {/* 그룹 헤더 */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, padding: '6px 10px', background: '#111', borderRadius: 8, border: '1px solid #1e1e1e' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                          {arrowBtn('▲', () => moveGroup(group.key, -1), gi === 0)}
-                          {arrowBtn('▼', () => moveGroup(group.key, 1), gi === groups.length - 1)}
+                      {editingGroup?.key === group.key ? (
+                        <div style={{ background: '#111', border: '1px solid #c8a96e44', borderRadius: 8, padding: 10, marginBottom: 6 }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '48px 1fr 1fr auto auto', gap: 6, alignItems: 'center' }}>
+                            <input value={editingGroup.emoji} onChange={e => setEditingGroup(g => g && ({ ...g, emoji: e.target.value }))} style={{ ...inp, textAlign: 'center', fontSize: 16, padding: '6px 4px' }} />
+                            <input value={editingGroup.ko} onChange={e => setEditingGroup(g => g && ({ ...g, ko: e.target.value }))} placeholder="한국어" style={inp} />
+                            <input value={editingGroup.en} onChange={e => setEditingGroup(g => g && ({ ...g, en: e.target.value }))} placeholder="English" style={inp} />
+                            <button onClick={saveGroup} style={{ padding: '8px 12px', background: '#c8a96e', color: '#080808', border: 'none', borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: 'pointer', ...F }}>저장</button>
+                            <button onClick={() => setEditingGroup(null)} style={{ padding: '8px 10px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#666', borderRadius: 7, fontSize: 12, cursor: 'pointer', ...F }}>✕</button>
+                          </div>
                         </div>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: '#c8a96e', flex: 1, ...F }}>{group.label}</span>
-                        <span style={{ fontSize: 10, color: '#444', ...F }}>{group.items.length}개</span>
-                      </div>
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, padding: '6px 10px', background: '#111', borderRadius: 8, border: '1px solid #1e1e1e' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            {arrowBtn('▲', () => moveGroup(group.key, -1), gi === 0)}
+                            {arrowBtn('▼', () => moveGroup(group.key, 1), gi === groups.length - 1)}
+                          </div>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: '#c8a96e', flex: 1, ...F }}>{group.label}</span>
+                          <span style={{ fontSize: 10, color: '#444', ...F }}>{group.items.length}개</span>
+                          <button onClick={() => setEditingGroup({ key: group.key, ko: group.ko, en: group.en, emoji: group.emoji })}
+                            style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#888', borderRadius: 7, padding: '4px 8px', fontSize: 11, cursor: 'pointer', ...F }}>
+                            ✏️
+                          </button>
+                        </div>
+                      )}
 
                       {/* 카테고리 행들 */}
                       {group.items.sort((a, b) => a.sort_order - b.sort_order).map((fc, ci) => (
-                        <div key={fc.id} style={{ background: '#0d0d0d', border: '1px solid #1e1e1e', borderRadius: 10, padding: '8px 12px', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 24 }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                            {arrowBtn('▲', () => moveCat(fc.id, -1), ci === 0)}
-                            {arrowBtn('▼', () => moveCat(fc.id, 1), ci === group.items.length - 1)}
-                          </div>
-                          <div style={{ flex: 1 }}>
-                            <span style={{ fontWeight: 700, fontSize: 13, ...F }}>{fc.name_ko}</span>
-                            <span style={{ fontSize: 11, color: '#555', marginLeft: 8, ...F }}>{fc.name_en}</span>
-                          </div>
-                          <button onClick={async () => {
-                            if (!confirm(`"${fc.name_ko}" 카테고리를 삭제할까요?`)) return
-                            const res = await fetch('/api/food-categories', {
-                              method: 'DELETE', headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ id: fc.id })
-                            })
-                            const json = await res.json()
-                            if (json.success) setFoodCategories(prev => prev.filter(c => c.id !== fc.id))
-                            else alert('삭제 실패: ' + JSON.stringify(json))
-                          }} style={{ background: '#2a1a1a', border: '1px solid #3a2a2a', color: '#e05a5a', borderRadius: 8, padding: '5px 8px', fontSize: 11, fontWeight: 700, cursor: 'pointer', ...F }}>
-                            🗑
-                          </button>
+                        <div key={fc.id} style={{ background: '#0d0d0d', border: `1px solid ${editingCat?.id === fc.id ? '#c8a96e44' : '#1e1e1e'}`, borderRadius: 10, padding: '8px 10px', marginBottom: 4, paddingLeft: 22 }}>
+                          {editingCat?.id === fc.id ? (
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto auto', gap: 6, alignItems: 'center' }}>
+                              <input value={editingCat.ko} onChange={e => setEditingCat(c => c && ({ ...c, ko: e.target.value }))} placeholder="한국어" style={{ ...inp, fontSize: 12 }} />
+                              <input value={editingCat.en} onChange={e => setEditingCat(c => c && ({ ...c, en: e.target.value }))} placeholder="English" style={{ ...inp, fontSize: 12 }} />
+                              <button onClick={saveCat} style={{ padding: '7px 10px', background: '#c8a96e', color: '#080808', border: 'none', borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: 'pointer', ...F }}>저장</button>
+                              <button onClick={() => setEditingCat(null)} style={{ padding: '7px 8px', background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#666', borderRadius: 7, fontSize: 11, cursor: 'pointer', ...F }}>✕</button>
+                            </div>
+                          ) : (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                {arrowBtn('▲', () => moveCat(fc.id, -1), ci === 0)}
+                                {arrowBtn('▼', () => moveCat(fc.id, 1), ci === group.items.length - 1)}
+                              </div>
+                              <div style={{ flex: 1 }}>
+                                <span style={{ fontWeight: 700, fontSize: 13, ...F }}>{fc.name_ko}</span>
+                                <span style={{ fontSize: 11, color: '#555', marginLeft: 8, ...F }}>{fc.name_en}</span>
+                              </div>
+                              <button onClick={() => setEditingCat({ id: fc.id, ko: fc.name_ko, en: fc.name_en })}
+                                style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', color: '#888', borderRadius: 7, padding: '4px 7px', fontSize: 11, cursor: 'pointer', ...F }}>✏️</button>
+                              <button onClick={async () => {
+                                if (!confirm(`"${fc.name_ko}" 카테고리를 삭제할까요?`)) return
+                                const res = await fetch('/api/food-categories', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: fc.id }) })
+                                const json = await res.json()
+                                if (json.success) setFoodCategories(prev => prev.filter(c => c.id !== fc.id))
+                                else alert('삭제 실패: ' + JSON.stringify(json))
+                              }} style={{ background: '#2a1a1a', border: '1px solid #3a2a2a', color: '#e05a5a', borderRadius: 7, padding: '4px 7px', fontSize: 11, cursor: 'pointer', ...F }}>🗑</button>
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
