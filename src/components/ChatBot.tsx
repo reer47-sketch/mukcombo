@@ -252,6 +252,17 @@ export default function ChatBot({ lang }: { lang: Lang }) {
       const res = await fetch('/api/stores')
       const stores = await res.json()
       storeResults = (Array.isArray(stores) ? stores : []).map((s: any) => ({ store: s, matchedMenus: [] }))
+    } else if (catId.startsWith('group:')) {
+      // 대분류 전체 — 그룹 내 카테고리별 검색 후 가게 중복 제거
+      const groupKo = catId.slice(6)
+      const groupCatIds = categories.filter(c => c.group_ko === groupKo).map(c => c.id)
+      const allResults = await Promise.all(
+        groupCatIds.map(id => fetch(`/api/menu-items?categories=${id}`).then(r => r.json()))
+      )
+      const seenIds = new Set<string>()
+      allResults.flat().forEach((r: StoreResult) => {
+        if (!seenIds.has(r.store.id)) { seenIds.add(r.store.id); storeResults.push(r) }
+      })
     } else {
       const res = await fetch(`/api/menu-items?categories=${catId}`)
       storeResults = await res.json()
@@ -290,17 +301,46 @@ export default function ChatBot({ lang }: { lang: Lang }) {
     } else if (step === 2) {
       next.time = value
       setAnswers(next)
-      const catOpts = [
-        ...categories.map(c => ({
-          label: lang === 'ko' ? c.name_ko : c.name_en,
-          value: c.id,
-          group: `${c.group_emoji || ''} ${lang === 'en' ? (c.group_en || c.group_ko) : c.group_ko}`.trim(),
-        })),
-        { label: lang === 'ko' ? '아무거나' : 'Any', value: 'any' },
-      ]
-      botSay('어떤 음식이 끌리세요?', catOpts)
+      // 대분류 목록 구성
+      const seenGroups = new Set<string>()
+      const groupOpts: Message['options'] = []
+      categories.forEach(c => {
+        if (!seenGroups.has(c.group_ko)) {
+          seenGroups.add(c.group_ko)
+          const label = `${c.group_emoji || ''} ${lang === 'en' ? (c.group_en || c.group_ko) : c.group_ko}`.trim()
+          groupOpts.push({ label, value: c.group_ko })
+        }
+      })
+      groupOpts.push({ label: lang === 'ko' ? '🎲 아무거나' : '🎲 Any', value: 'any' })
+      botSay('어떤 종류 음식이 당기세요?', groupOpts)
       setStep(3)
     } else if (step === 3) {
+      next.foodGroup = value
+      setAnswers(next)
+      if (value === 'any') {
+        // 아무거나 → 바로 결과
+        setTyping(true)
+        const cards = await buildRecommendCards('any')
+        setTyping(false)
+        const groupTxt = next.group === '1' ? '혼자' : `${next.group}명`
+        const timeTxt: Record<string, string> = { lunch: '점심', dinner: '저녁', late: '야식', any: '' }
+        const intro = `${groupTxt}${timeTxt[next.time] ? ` ${timeTxt[next.time]}` : ''} 추천 맛집이에요! 🎉`
+        setMessages(prev => [...prev, { from: 'bot', text: intro, cards }])
+        setStep(5)
+        setDone(true)
+      } else {
+        // 대분류 선택 → 세부 카테고리
+        const catOpts: Message['options'] = categories
+          .filter(c => c.group_ko === value)
+          .map(c => ({
+            label: lang === 'ko' ? c.name_ko : c.name_en,
+            value: c.id,
+          }))
+        catOpts.push({ label: lang === 'ko' ? '이 중 아무거나' : 'Any of these', value: `group:${value}` })
+        botSay('그 중 특별히 끌리는 게 있나요?', catOpts)
+        setStep(4)
+      }
+    } else if (step === 4) {
       next.menu = value
       setAnswers(next)
       setTyping(true)
@@ -310,7 +350,7 @@ export default function ChatBot({ lang }: { lang: Lang }) {
       const timeTxt: Record<string, string> = { lunch: '점심', dinner: '저녁', late: '야식', any: '' }
       const intro = `${groupTxt}${timeTxt[next.time] ? ` ${timeTxt[next.time]}` : ''} 추천 맛집이에요! 🎉`
       setMessages(prev => [...prev, { from: 'bot', text: intro, cards }])
-      setStep(4)
+      setStep(5)
       setDone(true)
     }
   }
