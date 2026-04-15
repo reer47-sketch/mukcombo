@@ -41,6 +41,21 @@ const inputSt: React.CSSProperties = {
   color: '#f0ece4', fontSize: 13, outline: 'none', width: '100%', boxSizing: 'border-box', ...F,
 }
 
+declare global {
+  interface Window {
+    daum: {
+      Postcode: new (opts: { oncomplete: (d: DaumPostcodeData) => void; theme?: Record<string, string> }) => { open: () => void }
+    }
+  }
+}
+interface DaumPostcodeData {
+  roadAddress: string
+  jibunAddress: string
+  englishAddress: string
+  buildingName: string
+  zonecode: string
+}
+
 // ── 가게 등록 폼 ──────────────────────────────────────────
 function StoreForm({ userId, onSaved, onCancel }: { userId?: string; onSaved: () => void; onCancel: () => void }) {
   const [storeName, setStoreName] = useState({ ko: '', en: '' })
@@ -53,7 +68,26 @@ function StoreForm({ userId, onSaved, onCancel }: { userId?: string; onSaved: ()
 
   useEffect(() => {
     fetch('/api/food-categories').then(r => r.json()).then(data => { if (Array.isArray(data)) setFoodCategories(data) })
+    // Daum 우편번호 스크립트 로드
+    if (!document.getElementById('daum-postcode-script')) {
+      const s = document.createElement('script')
+      s.id = 'daum-postcode-script'
+      s.src = '//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js'
+      document.head.appendChild(s)
+    }
   }, [])
+
+  const openPostcode = () => {
+    if (!window.daum?.Postcode) return alert('주소 검색 로딩 중이에요. 잠시 후 다시 눌러주세요.')
+    new window.daum.Postcode({
+      oncomplete: (data) => {
+        const ko = data.roadAddress || data.jibunAddress
+        const en = data.englishAddress || ''
+        setAddress({ ko, en })
+      },
+      theme: { bgColor: '#0d0d0d', searchBgColor: '#141414', contentBgColor: '#111', pageBgColor: '#0a0a0a', textColor: '#f0ece4', queryTextColor: '#f0ece4', postcodeTextColor: '#c8a96e', emphTextColor: '#c8a96e', outlineColor: '#2a2a2a' },
+    }).open()
+  }
 
   const updateSection = (si: number, updated: MenuSection) =>
     setSections(s => { const n = [...s]; n[si] = updated; return n })
@@ -153,14 +187,20 @@ function StoreForm({ userId, onSaved, onCancel }: { userId?: string; onSaved: ()
             <input value={storeName.en} onChange={e => setStoreName({ ...storeName, en: e.target.value })} placeholder="Gorda" style={{ ...inputSt, color: '#c8a96e' }} />
           </div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
-          <div>
-            <div style={{ fontSize: 10, color: '#666', marginBottom: 4, ...F }}>📍 주소</div>
-            <input value={address.ko} onChange={e => setAddress({ ...address, ko: e.target.value })} placeholder="경기 평택시..." style={inputSt} />
+        <div style={{ marginBottom: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+            <div style={{ fontSize: 10, color: '#666', ...F }}>📍 주소</div>
+            <button
+              type="button"
+              onClick={openPostcode}
+              style={{ background: '#1a1200', border: '1px solid #c8a96e44', borderRadius: 6, padding: '3px 10px', color: '#c8a96e', fontSize: 11, cursor: 'pointer', fontWeight: 700, ...F }}
+            >
+              🔍 주소 검색
+            </button>
           </div>
-          <div>
-            <div style={{ fontSize: 10, color: '#666', marginBottom: 4, ...F }}>📍 Address (EN)</div>
-            <input value={address.en} onChange={e => setAddress({ ...address, en: e.target.value })} placeholder="2F, 12 Pyeongtaek..." style={inputSt} />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <input value={address.ko} onChange={e => setAddress({ ...address, ko: e.target.value })} placeholder="경기 평택시..." style={inputSt} />
+            <input value={address.en} onChange={e => setAddress({ ...address, en: e.target.value })} placeholder="자동 입력됩니다" style={{ ...inputSt, color: '#c8a96e' }} />
           </div>
         </div>
         <div>
