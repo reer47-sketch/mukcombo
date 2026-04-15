@@ -187,7 +187,11 @@ export async function GET() {
     ? (now.getTime() - new Date(cached.updated_at as string).getTime()) / 3_600_000
     : Infinity
 
-  if (cached && cacheAgeH < 23) {
+  // 캐시 유효 + 네이버 데이터도 있으면 반환
+  const cachedNaver = (cached?.trends as { naver?: unknown[] } | null)?.naver
+  const naverKeysExist = !!(process.env.NAVER_CLIENT_ID && process.env.NAVER_CLIENT_SECRET)
+  const naverCacheEmpty = !cachedNaver || cachedNaver.length === 0
+  if (cached && cacheAgeH < 23 && !(naverKeysExist && naverCacheEmpty)) {
     return NextResponse.json(cached.trends)
   }
 
