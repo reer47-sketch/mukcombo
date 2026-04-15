@@ -22,11 +22,19 @@ interface AdminStats {
 }
 interface Choice { id: string; ko: string; en: string; extraPrice: string }
 interface Option { id: string; key: string; labelKo: string; labelEn: string; choices: Choice[] }
-interface FlatMenu { id: string; nameKo: string; nameEn: string; price: string; options: Option[]; foodCategoryId: string }
+interface SectionMenu { id: string; nameKo: string; nameEn: string; price: string; options: Option[]; foodCategoryId: string }
+interface MenuSection { id: string; nameKo: string; menus: SectionMenu[] }
 
-const EMPTY_MENU = (): FlatMenu => ({
-  id: uid(), nameKo: '', nameEn: '', price: '', options: [], foodCategoryId: '',
-})
+const EMPTY_MENU = (): SectionMenu => ({ id: uid(), nameKo: '', nameEn: '', price: '', options: [], foodCategoryId: '' })
+const EMPTY_SECTION = (): MenuSection => ({ id: uid(), nameKo: '', menus: [EMPTY_MENU()] })
+
+function moveItem<T>(arr: T[], idx: number, dir: -1 | 1): T[] {
+  const next = [...arr]
+  const target = idx + dir
+  if (target < 0 || target >= next.length) return next
+  ;[next[idx], next[target]] = [next[target], next[idx]]
+  return next
+}
 
 const inputSt: React.CSSProperties = {
   background: '#141414', border: '1px solid #222', borderRadius: 7, padding: '8px 10px',
@@ -39,7 +47,7 @@ function StoreForm({ userId, onSaved, onCancel }: { userId?: string; onSaved: ()
   const [address, setAddress] = useState({ ko: '', en: '' })
   const [mapUrl, setMapUrl] = useState('')
   const [emoji, setEmoji] = useState('🍜')
-  const [menus, setMenus] = useState<FlatMenu[]>([EMPTY_MENU()])
+  const [sections, setSections] = useState<MenuSection[]>([EMPTY_SECTION()])
   const [saving, setSaving] = useState(false)
   const [foodCategories, setFoodCategories] = useState<FoodCat[]>([])
 
@@ -47,34 +55,36 @@ function StoreForm({ userId, onSaved, onCancel }: { userId?: string; onSaved: ()
     fetch('/api/food-categories').then(r => r.json()).then(data => { if (Array.isArray(data)) setFoodCategories(data) })
   }, [])
 
-  const updateMenu = (idx: number, updated: FlatMenu) => { const m = [...menus]; m[idx] = updated; setMenus(m) }
-  const deleteMenu = (idx: number) => menus.length > 1 && setMenus(menus.filter((_, i) => i !== idx))
+  const updateSection = (si: number, updated: MenuSection) =>
+    setSections(s => { const n = [...s]; n[si] = updated; return n })
+  const deleteSection = (si: number) =>
+    setSections(s => s.length > 1 ? s.filter((_, i) => i !== si) : s)
 
   const handleSave = async () => {
     if (!storeName.ko) return alert('가게명을 입력해주세요')
-    const validMenus = menus.filter(m => m.nameKo.trim())
-    if (validMenus.length === 0) return alert('메뉴를 하나 이상 입력해주세요')
+    const hasMenu = sections.some(sec => sec.menus.some(m => m.nameKo.trim()))
+    if (!hasMenu) return alert('메뉴를 하나 이상 입력해주세요')
 
     setSaving(true)
-    // food_category별로 그룹핑 → stores.categories 필드 구성
     const categories: Record<string, string[]> = {}
     const prices: Record<string, string> = {}
     const menu_names: Record<string, { ko: string; en: string }> = {}
     const menu_options: Record<string, unknown[]> = {}
 
-    validMenus.forEach(m => {
-      const fc = foodCategories.find(f => f.id === m.foodCategoryId)
-      const section = fc?.name_ko || '기타'
-      if (!categories[section]) categories[section] = []
-      categories[section].push(m.nameKo)
-      prices[m.nameKo] = m.price
-      menu_names[m.nameKo] = { ko: m.nameKo, en: m.nameEn }
-      if (m.options.length > 0) {
-        menu_options[m.nameKo] = m.options.map(opt => ({
-          key: opt.key || opt.id, labelKo: opt.labelKo, labelEn: opt.labelEn,
-          choices: opt.choices.map(c => ({ ko: c.ko, en: c.en, extraPrice: c.extraPrice ?? '' })),
-        }))
-      }
+    sections.forEach(sec => {
+      const validMenus = sec.menus.filter(m => m.nameKo.trim())
+      if (!sec.nameKo.trim() || validMenus.length === 0) return
+      categories[sec.nameKo] = validMenus.map(m => m.nameKo)
+      validMenus.forEach(m => {
+        prices[m.nameKo] = m.price
+        menu_names[m.nameKo] = { ko: m.nameKo, en: m.nameEn }
+        if (m.options.length > 0) {
+          menu_options[m.nameKo] = m.options.map(opt => ({
+            key: opt.key || opt.id, labelKo: opt.labelKo, labelEn: opt.labelEn,
+            choices: opt.choices.map(c => ({ ko: c.ko, en: c.en, extraPrice: c.extraPrice ?? '' })),
+          }))
+        }
+      })
     })
 
     const res = await fetch('/api/stores', {
@@ -88,24 +98,16 @@ function StoreForm({ userId, onSaved, onCancel }: { userId?: string; onSaved: ()
     })
     const json = await res.json()
     if (json.id) {
-      // menu_items 저장 (food_category 매핑)
-      const menuPayload = validMenus
-        .filter(m => m.foodCategoryId)
-        .map(m => ({ storeId: json.id, nameKo: m.nameKo, nameEn: m.nameEn, price: m.price, foodCategoryId: m.foodCategoryId }))
-      if (menuPayload.length > 0) {
-        await fetch('/api/menu-items', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(menuPayload),
-        })
-      }
-      // store_category_map 저장 (검색 인덱스)
-      const seen = new Set<string>()
+      // store_category_map 저장 (섹션별 고유 food_category)
       const mappings: { storeCategory: string; foodCategoryId: string }[] = []
-      validMenus.forEach(m => {
-        if (!m.foodCategoryId || seen.has(m.foodCategoryId)) return
-        seen.add(m.foodCategoryId)
-        const fc = foodCategories.find(f => f.id === m.foodCategoryId)
-        if (fc) mappings.push({ storeCategory: fc.name_ko, foodCategoryId: m.foodCategoryId })
+      sections.forEach(sec => {
+        if (!sec.nameKo.trim()) return
+        const seen = new Set<string>()
+        sec.menus.forEach(m => {
+          if (!m.foodCategoryId || seen.has(m.foodCategoryId)) return
+          seen.add(m.foodCategoryId)
+          mappings.push({ storeCategory: sec.nameKo, foodCategoryId: m.foodCategoryId })
+        })
       })
       if (mappings.length > 0) {
         await fetch('/api/store-category-map', {
@@ -117,6 +119,15 @@ function StoreForm({ userId, onSaved, onCancel }: { userId?: string; onSaved: ()
     } else alert('오류: ' + JSON.stringify(json))
     setSaving(false)
   }
+
+  const arrowBtn = (label: string, onClick: () => void, disabled: boolean) => (
+    <button onClick={onClick} disabled={disabled} style={{
+      width: 22, height: 22, border: '1px solid #2a2a2a', borderRadius: 5,
+      background: disabled ? '#111' : '#1a1a1a', color: disabled ? '#333' : '#888',
+      cursor: disabled ? 'default' : 'pointer', fontSize: 10,
+      display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+    }}>{label}</button>
+  )
 
   return (
     <div style={{ background: '#0d0d0d', border: '1px solid #1e1e1e', borderRadius: 14, padding: 24, marginBottom: 20 }}>
@@ -158,63 +169,96 @@ function StoreForm({ userId, onSaved, onCancel }: { userId?: string; onSaved: ()
         </div>
       </div>
 
-      {/* 메뉴 목록 */}
+      {/* 메뉴 구성 (섹션) */}
       <div style={{ fontSize: 11, color: '#555', letterSpacing: 2, fontWeight: 700, marginBottom: 12, ...F }}>메뉴 구성</div>
-      {menus.map((menu, mi) => {
-        const update = (u: FlatMenu) => updateMenu(mi, u)
-        return (
-          <div key={menu.id} style={{ background: '#111', border: '1px solid #1e1e1e', borderRadius: 12, marginBottom: 10, padding: '12px 12px 10px' }}>
-            {/* 메뉴 입력 행 */}
-            <div style={{ display: 'flex', gap: 7, alignItems: 'center', marginBottom: 8 }}>
-              <input value={menu.nameKo} onChange={e => update({ ...menu, nameKo: e.target.value })} placeholder="메뉴명" style={{ flex: 2.5, ...inputSt, fontWeight: 700 }} />
-              <input value={menu.nameEn} onChange={e => update({ ...menu, nameEn: e.target.value })} placeholder="Menu (EN)" style={{ flex: 2.5, ...inputSt, color: '#c8a96e' }} />
-              <div style={{ display: 'flex', alignItems: 'center', gap: 3, flex: 1.2 }}>
-                <input value={menu.price} onChange={e => update({ ...menu, price: e.target.value })} placeholder="가격" style={{ flex: 1, ...inputSt, textAlign: 'right' }} />
-                <span style={{ fontSize: 10, color: '#555', flexShrink: 0 }}>원</span>
-              </div>
-              <button onClick={() => deleteMenu(mi)} disabled={menus.length === 1} style={{ width: 26, height: 26, borderRadius: '50%', border: 'none', background: menus.length === 1 ? '#141414' : '#2a1a1a', color: menus.length === 1 ? '#333' : '#e05a5a', cursor: menus.length === 1 ? 'default' : 'pointer', fontSize: 12, flexShrink: 0 }}>✕</button>
+
+      {sections.map((sec, si) => (
+        <div key={sec.id} style={{ background: '#0a0a0a', border: '1px solid #1e1e1e', borderRadius: 14, marginBottom: 12, overflow: 'hidden' }}>
+          {/* 섹션 헤더 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', background: '#111', borderBottom: '1px solid #1e1e1e' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {arrowBtn('▲', () => setSections(s => moveItem(s, si, -1)), si === 0)}
+              {arrowBtn('▼', () => setSections(s => moveItem(s, si, 1)), si === sections.length - 1)}
             </div>
-            {/* 카테고리 피커 */}
-            <CategoryPicker
-              menuName={menu.nameKo}
-              value={menu.foodCategoryId}
-              onChange={id => update({ ...menu, foodCategoryId: id })}
-              foodCategories={foodCategories}
+            <div style={{ width: 3, height: 28, background: '#c8a96e', borderRadius: 2, flexShrink: 0 }} />
+            <input
+              value={sec.nameKo}
+              onChange={e => updateSection(si, { ...sec, nameKo: e.target.value })}
+              placeholder="섹션명 (예: 라멘류, 사이드, 주류)"
+              style={{ flex: 1, ...inputSt, fontWeight: 700, fontSize: 14, ...F, background: '#111', border: '1px solid #2a2a2a' }}
             />
-            {/* 옵션들 */}
-            {menu.options.map((opt, oi) => {
-              const updateOpt = (u: Option) => { const o = [...menu.options]; o[oi] = u; update({ ...menu, options: o }) }
+            <span style={{ fontSize: 10, color: '#444', flexShrink: 0, ...F }}>섹션</span>
+            <button
+              onClick={() => deleteSection(si)}
+              disabled={sections.length === 1}
+              style={{ width: 26, height: 26, borderRadius: '50%', border: 'none', background: sections.length === 1 ? '#141414' : '#2a1a1a', color: sections.length === 1 ? '#333' : '#e05a5a', cursor: sections.length === 1 ? 'default' : 'pointer', fontSize: 13, flexShrink: 0 }}>✕</button>
+          </div>
+
+          {/* 섹션 내 메뉴 */}
+          <div style={{ padding: '10px 12px' }}>
+            {sec.menus.map((menu, mi) => {
+              const updMenu = (u: SectionMenu) => updateSection(si, { ...sec, menus: sec.menus.map((m, i) => i === mi ? u : m) })
+              const delMenu = () => sec.menus.length > 1 && updateSection(si, { ...sec, menus: sec.menus.filter((_, i) => i !== mi) })
               return (
-                <div key={opt.id} style={{ background: '#0d0d0d', borderRadius: 8, padding: '8px 10px', marginTop: 8, border: '1px solid #1e1e1e' }}>
-                  <div style={{ display: 'flex', gap: 6, marginBottom: 6, alignItems: 'center' }}>
-                    <div style={{ width: 3, height: 24, background: '#c8a96e', borderRadius: 2, flexShrink: 0 }} />
-                    <input value={opt.labelKo} onChange={e => updateOpt({ ...opt, labelKo: e.target.value })} placeholder="옵션명" style={{ flex: 1, ...inputSt, fontSize: 12 }} />
-                    <input value={opt.labelEn} onChange={e => updateOpt({ ...opt, labelEn: e.target.value })} placeholder="Option (EN)" style={{ flex: 1, ...inputSt, fontSize: 12, color: '#c8a96e' }} />
-                    <button onClick={() => update({ ...menu, options: menu.options.filter((_, i) => i !== oi) })} style={{ width: 22, height: 22, borderRadius: '50%', border: 'none', background: '#2a1a1a', color: '#e05a5a', cursor: 'pointer', fontSize: 10, flexShrink: 0 }}>✕</button>
+                <div key={menu.id} style={{ background: '#111', border: '1px solid #1e1e1e', borderRadius: 10, marginBottom: 8, padding: '10px 10px 8px' }}>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 8 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      {arrowBtn('▲', () => updateSection(si, { ...sec, menus: moveItem(sec.menus, mi, -1) }), mi === 0)}
+                      {arrowBtn('▼', () => updateSection(si, { ...sec, menus: moveItem(sec.menus, mi, 1) }), mi === sec.menus.length - 1)}
+                    </div>
+                    <input value={menu.nameKo} onChange={e => updMenu({ ...menu, nameKo: e.target.value })} placeholder="메뉴명" style={{ flex: 2.5, ...inputSt, fontWeight: 700 }} />
+                    <input value={menu.nameEn} onChange={e => updMenu({ ...menu, nameEn: e.target.value })} placeholder="Menu (EN)" style={{ flex: 2.5, ...inputSt, color: '#c8a96e' }} />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 3, flex: 1.2 }}>
+                      <input value={menu.price} onChange={e => updMenu({ ...menu, price: e.target.value })} placeholder="가격" style={{ flex: 1, ...inputSt, textAlign: 'right' }} />
+                      <span style={{ fontSize: 10, color: '#555', flexShrink: 0 }}>원</span>
+                    </div>
+                    <button onClick={delMenu} disabled={sec.menus.length === 1} style={{ width: 24, height: 24, borderRadius: '50%', border: 'none', background: sec.menus.length === 1 ? '#141414' : '#2a1a1a', color: sec.menus.length === 1 ? '#333' : '#e05a5a', cursor: sec.menus.length === 1 ? 'default' : 'pointer', fontSize: 11, flexShrink: 0 }}>✕</button>
                   </div>
-                  {opt.choices.map((c, chi) => {
-                    const updateChoice = (u: Choice) => { const ch = [...opt.choices]; ch[chi] = u; updateOpt({ ...opt, choices: ch }) }
+                  <CategoryPicker
+                    menuName={menu.nameKo}
+                    value={menu.foodCategoryId}
+                    onChange={id => updMenu({ ...menu, foodCategoryId: id })}
+                    foodCategories={foodCategories}
+                  />
+                  {menu.options.map((opt, oi) => {
+                    const updOpt = (u: Option) => updMenu({ ...menu, options: menu.options.map((o, i) => i === oi ? u : o) })
                     return (
-                      <div key={c.id} style={{ display: 'flex', gap: 4, marginBottom: 4, paddingLeft: 11 }}>
-                        <input value={c.ko} onChange={e => updateChoice({ ...c, ko: e.target.value })} placeholder="선택지" style={{ flex: 2, ...inputSt, fontSize: 11, padding: '5px 8px' }} />
-                        <input value={c.en} onChange={e => updateChoice({ ...c, en: e.target.value })} placeholder="Choice" style={{ flex: 2, ...inputSt, fontSize: 11, padding: '5px 8px', color: '#c8a96e' }} />
-                        <input value={c.extraPrice} onChange={e => updateChoice({ ...c, extraPrice: e.target.value })} placeholder="+0" style={{ flex: 1, ...inputSt, fontSize: 11, padding: '5px 8px', textAlign: 'right', color: '#6fcf97' }} />
-                        <button onClick={() => opt.choices.length > 1 && updateOpt({ ...opt, choices: opt.choices.filter((_, i) => i !== chi) })} disabled={opt.choices.length <= 1} style={{ width: 20, height: 20, borderRadius: '50%', border: 'none', background: opt.choices.length > 1 ? '#2a1a1a' : '#181818', color: opt.choices.length > 1 ? '#e05a5a' : '#333', cursor: opt.choices.length > 1 ? 'pointer' : 'default', fontSize: 9, flexShrink: 0 }}>✕</button>
+                      <div key={opt.id} style={{ background: '#0d0d0d', borderRadius: 8, padding: '8px 10px', marginTop: 8, border: '1px solid #1a1a1a' }}>
+                        <div style={{ display: 'flex', gap: 6, marginBottom: 6, alignItems: 'center' }}>
+                          <div style={{ width: 3, height: 24, background: '#c8a96e', borderRadius: 2, flexShrink: 0 }} />
+                          <input value={opt.labelKo} onChange={e => updOpt({ ...opt, labelKo: e.target.value })} placeholder="옵션명" style={{ flex: 1, ...inputSt, fontSize: 12 }} />
+                          <input value={opt.labelEn} onChange={e => updOpt({ ...opt, labelEn: e.target.value })} placeholder="Option (EN)" style={{ flex: 1, ...inputSt, fontSize: 12, color: '#c8a96e' }} />
+                          <button onClick={() => updMenu({ ...menu, options: menu.options.filter((_, i) => i !== oi) })} style={{ width: 22, height: 22, borderRadius: '50%', border: 'none', background: '#2a1a1a', color: '#e05a5a', cursor: 'pointer', fontSize: 10, flexShrink: 0 }}>✕</button>
+                        </div>
+                        {opt.choices.map((c, chi) => {
+                          const updChoice = (u: Choice) => updOpt({ ...opt, choices: opt.choices.map((ch, i) => i === chi ? u : ch) })
+                          return (
+                            <div key={c.id} style={{ display: 'flex', gap: 4, marginBottom: 4, paddingLeft: 11 }}>
+                              <input value={c.ko} onChange={e => updChoice({ ...c, ko: e.target.value })} placeholder="선택지" style={{ flex: 2, ...inputSt, fontSize: 11, padding: '5px 8px' }} />
+                              <input value={c.en} onChange={e => updChoice({ ...c, en: e.target.value })} placeholder="Choice" style={{ flex: 2, ...inputSt, fontSize: 11, padding: '5px 8px', color: '#c8a96e' }} />
+                              <input value={c.extraPrice} onChange={e => updChoice({ ...c, extraPrice: e.target.value })} placeholder="+0" style={{ flex: 1, ...inputSt, fontSize: 11, padding: '5px 8px', textAlign: 'right', color: '#6fcf97' }} />
+                              <button onClick={() => opt.choices.length > 1 && updOpt({ ...opt, choices: opt.choices.filter((_, i) => i !== chi) })} disabled={opt.choices.length <= 1} style={{ width: 20, height: 20, borderRadius: '50%', border: 'none', background: opt.choices.length > 1 ? '#2a1a1a' : '#181818', color: opt.choices.length > 1 ? '#e05a5a' : '#333', cursor: opt.choices.length > 1 ? 'pointer' : 'default', fontSize: 9, flexShrink: 0 }}>✕</button>
+                            </div>
+                          )
+                        })}
+                        <button onClick={() => updOpt({ ...opt, choices: [...opt.choices, { id: uid(), ko: '', en: '', extraPrice: '' }] })} style={{ marginLeft: 11, marginTop: 2, background: 'none', border: '1px dashed #2a2a2a', borderRadius: 5, padding: '2px 8px', color: '#555', fontSize: 10, cursor: 'pointer', ...F }}>+ 선택지</button>
                       </div>
                     )
                   })}
-                  <button onClick={() => updateOpt({ ...opt, choices: [...opt.choices, { id: uid(), ko: '', en: '', extraPrice: '' }] })} style={{ marginLeft: 11, marginTop: 2, background: 'none', border: '1px dashed #2a2a2a', borderRadius: 5, padding: '2px 8px', color: '#555', fontSize: 10, cursor: 'pointer', ...F }}>+ 선택지</button>
+                  <button onClick={() => updMenu({ ...menu, options: [...menu.options, { id: uid(), key: uid(), labelKo: '', labelEn: '', choices: [{ id: uid(), ko: '', en: '', extraPrice: '' }, { id: uid(), ko: '', en: '', extraPrice: '' }] }] })} style={{ width: '100%', background: 'none', border: '1px dashed #1e1e1e', borderRadius: 6, padding: '5px', color: '#383838', fontSize: 11, cursor: 'pointer', marginTop: 8, ...F }}>
+                    ⚙ 옵션 추가
+                  </button>
                 </div>
               )
             })}
-            <button onClick={() => update({ ...menu, options: [...menu.options, { id: uid(), key: uid(), labelKo: '', labelEn: '', choices: [{ id: uid(), ko: '', en: '', extraPrice: '' }, { id: uid(), ko: '', en: '', extraPrice: '' }] }] })} style={{ width: '100%', background: 'none', border: '1px dashed #1e1e1e', borderRadius: 6, padding: '5px', color: '#383838', fontSize: 11, cursor: 'pointer', marginTop: 8, ...F }}>
-              ⚙ 옵션 추가
+            <button onClick={() => updateSection(si, { ...sec, menus: [...sec.menus, EMPTY_MENU()] })} style={{ width: '100%', background: 'none', border: '1.5px dashed #1e1e1e', borderRadius: 8, padding: '8px', color: '#484848', fontSize: 12, cursor: 'pointer', ...F }}>
+              + 메뉴 추가
             </button>
           </div>
-        )
-      })}
-      <button onClick={() => setMenus(m => [...m, EMPTY_MENU()])} style={{ width: '100%', background: '#0d0d0d', border: '2px dashed #1a1a1a', borderRadius: 10, padding: '10px', color: '#484848', fontSize: 13, cursor: 'pointer', fontWeight: 700, marginBottom: 20, ...F }}>
-        + 메뉴 추가
+        </div>
+      ))}
+      <button onClick={() => setSections(s => [...s, EMPTY_SECTION()])} style={{ width: '100%', background: '#0d0d0d', border: '2px dashed #1a1a1a', borderRadius: 10, padding: '10px', color: '#484848', fontSize: 13, cursor: 'pointer', fontWeight: 700, marginBottom: 20, ...F }}>
+        + 섹션 추가
       </button>
       <button onClick={handleSave} disabled={saving} style={{ width: '100%', padding: 14, background: saving ? '#1a1a1a' : '#c8a96e', color: saving ? '#555' : '#080808', border: 'none', borderRadius: 10, fontSize: 15, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', ...F }}>
         {saving ? '저장 중...' : '가게 등록 완료 🎉'}
