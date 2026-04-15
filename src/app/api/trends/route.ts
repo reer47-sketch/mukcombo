@@ -95,15 +95,19 @@ function isFoodRelated(keyword: string): boolean {
 async function fetchGoogleTrends(): Promise<GoogleTrendItem[]> {
   try {
     const res = await fetch('https://trends.google.com/trending/rss?geo=KR', {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; MukCombo/1.0)' },
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept-Language': 'ko-KR,ko;q=0.9',
+      },
       next: { revalidate: 0 },
     })
     const xml = await res.text()
 
-    // RSS 파싱 (정규식 기반)
+    // RSS 파싱 — CDATA 유무 모두 처리
     const items: GoogleTrendItem[] = []
-    const titleRe = /<title><!\[CDATA\[(.*?)\]\]><\/title>/g
-    const trafficRe = /<ht:approx_traffic>(.*?)<\/ht:approx_traffic>/g
+    // <title>...</title> 또는 <title><![CDATA[...]]></title>
+    const titleRe = /<title>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/g
+    const trafficRe = /<ht:approx_traffic>([\s\S]*?)<\/ht:approx_traffic>/g
     const titles: string[] = []
     const traffics: string[] = []
     let m: RegExpExecArray | null
@@ -112,9 +116,10 @@ async function fetchGoogleTrends(): Promise<GoogleTrendItem[]> {
     let first = true
     while ((m = titleRe.exec(xml)) !== null) {
       if (first) { first = false; continue }
-      titles.push(m[1])
+      const t = m[1].trim()
+      if (t) titles.push(t)
     }
-    while ((m = trafficRe.exec(xml)) !== null) traffics.push(m[1])
+    while ((m = trafficRe.exec(xml)) !== null) traffics.push(m[1].trim())
 
     for (let i = 0; i < titles.length; i++) {
       items.push({ keyword: titles[i], traffic: traffics[i] })
