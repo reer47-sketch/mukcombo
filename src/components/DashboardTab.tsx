@@ -528,7 +528,6 @@ export default function DashboardTab({ lang }: { lang: Lang }) {
     })
     const saved = await res.json()
     setMyStores(s => s.map(x => x.id === saved.id ? saved : x))
-    setEditingStore(null)
   }
 
   if (authLoading) {
