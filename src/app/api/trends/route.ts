@@ -125,18 +125,7 @@ async function fetchGoogleTrends(): Promise<GoogleTrendItem[]> {
       items.push({ keyword: titles[i], traffic: traffics[i] })
     }
 
-    const foodItems = items.filter(item => isFoodRelated(item.keyword))
-    // 음식 관련 항목 최대 8개, 부족하면 전체에서 추가로 채움
-    const shown = [...foodItems]
-    if (shown.length < 5) {
-      for (const item of items) {
-        if (!shown.find(s => s.keyword === item.keyword)) {
-          shown.push(item)
-          if (shown.length >= 8) break
-        }
-      }
-    }
-    return shown.slice(0, 10)
+    return items.filter(item => isFoodRelated(item.keyword)).slice(0, 10)
   } catch {
     return []
   }
