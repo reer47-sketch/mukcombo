@@ -3,12 +3,12 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { Toaster } from 'react-hot-toast'
 import toast from 'react-hot-toast'
 import { supabase, uploadPostImage } from '@/lib/supabase'
-import { T, CAT_ACCENT, type Lang, type Translations } from '@/lib/i18n'
+import { T, CAT_ACCENT, type Lang } from '@/lib/i18n'
 import type { Store, Post, Comment, MainMenuItem } from '@/types'
-import MenuEditor from '@/components/MenuEditor'
-import NicknamePopup from '@/components/NicknamePopup'
+import LoginModal from '@/components/LoginModal'
 import FoodSearch from '@/components/FoodSearch'
 import DashboardTab from '@/components/DashboardTab'
+import OripaTab from '@/components/OripaTab'
 
 // ── 헬퍼 ──────────────────────────────────────────────────
 const dName = (store: Store, koKey: string, lang: Lang) => {
@@ -120,19 +120,24 @@ export default function Home() {
 
   // 사용자
   const [currentUser, setCurrentUser] = useState<{ id: string; nickname: string } | null>(null)
-  const [showNicknamePopup, setShowNicknamePopup] = useState(false)
-  const [authUser, setAuthUser] = useState<{ id: string; email: string; role: string } | null>(null)
+  const [showLoginModal, setShowLoginModal] = useState(false)
+  const [authUser, setAuthUser] = useState<{ id: string; email: string; role: string; displayName: string } | null>(null)
   const [authChecked, setAuthChecked] = useState(false)
 
   // 로그인 상태 + 역할 확인
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data }) => {
       if (data.session?.user) {
+        const u = data.session.user
         const res = await fetch('/api/auth/role', {
           headers: { Authorization: `Bearer ${data.session.access_token}` }
         })
         const { role } = await res.json()
-        setAuthUser({ id: data.session.user.id, email: data.session.user.email || '', role })
+        const displayName = u.user_metadata?.full_name || u.user_metadata?.name || u.email?.split('@')[0] || '사용자'
+        setAuthUser({ id: u.id, email: u.email || '', role, displayName })
+        if (role === 'user') {
+          setCurrentUser({ id: u.id, nickname: displayName })
+        }
       }
       setAuthChecked(true)
     })
@@ -141,9 +146,8 @@ export default function Home() {
   const [stores, setStores] = useState<Store[]>([])
   const [posts, setPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
-  const [tab, setTab] = useState<'search' | 'feed' | 'stores' | 'manage'>('feed')
+  const [tab, setTab] = useState<'search' | 'feed' | 'stores' | 'oripa' | 'manage'>('feed')
   const [subView, setSubView] = useState<'list' | 'edit'>('list')
-  const [editingStore, setEditingStore] = useState<Store | null>(null)
   const [filterStoreId, setFilterStoreId] = useState<string | null>(null)
   const [showPostForm, setShowPostForm] = useState(false)
 
@@ -167,16 +171,11 @@ export default function Home() {
     }
   }, [])
 
-  // 닉네임 로컬스토리지 체크 (인증된 유저는 팝업 불필요)
+  // 미인증 유저는 로그인 모달 표시
   useEffect(() => {
     if (!authChecked) return
     if (authUser) return
-    const stored = localStorage.getItem('mukcombo_user')
-    if (stored) {
-      try { setCurrentUser(JSON.parse(stored)) } catch { setShowNicknamePopup(true) }
-    } else {
-      setShowNicknamePopup(true)
-    }
+    setShowLoginModal(true)
   }, [authChecked, authUser])
 
   const loadData = useCallback(async () => {
@@ -234,8 +233,8 @@ export default function Home() {
 
   const handleSubmit = async () => {
     if (!selectedStore || mainItems.length + sideItems.length < 2 || !review.trim()) return
-    if (authUser) return  // 점주/어드민은 피드 등록 불가
-    if (!currentUser) { setShowNicknamePopup(true); return }
+    if (authUser && authUser.role !== 'user') return  // 점주/어드민은 피드 등록 불가
+    if (!currentUser) { setShowLoginModal(true); return }
     setSubmitting(true)
     try {
       let photoUrl: string | null = null
@@ -262,7 +261,7 @@ export default function Home() {
       const saved = await res.json()
       setStores(stores.map(s => s.id === saved.id ? saved : s))
       if (selectedStore?.id === saved.id) setSelectedStore(saved)
-      setSubView('list'); setEditingStore(null)
+      setSubView('list')
       toast.success(lang === 'ko' ? '저장됐어요 ✓' : 'Saved ✓')
     } catch { toast.error(t.toastError) }
   }
@@ -281,12 +280,9 @@ export default function Home() {
     <div style={{ minHeight: '100vh', background: '#080808', color: '#f0ece4', maxWidth: 430, margin: '0 auto', ...F }}>
       <Toaster position="top-center" toastOptions={{ style: { background: '#1a1a1a', color: '#f0ece4', border: '1px solid #2a2a2a' } }} />
 
-      {/* 닉네임 팝업 */}
-      {showNicknamePopup && (
-        <NicknamePopup lang={lang} onConfirm={(nickname, userId) => {
-          setCurrentUser({ id: userId, nickname })
-          setShowNicknamePopup(false)
-        }} />
+      {/* 로그인 모달 */}
+      {showLoginModal && !authUser && (
+        <LoginModal lang={lang} onClose={() => setShowLoginModal(false)} />
       )}
 
       {/* ── HEADER ── */}
@@ -301,13 +297,13 @@ export default function Home() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {/* 이름/역할 표시 */}
             {authUser ? (
-              <div style={{ fontSize: 11, background: '#141414', border: '1px solid #222', borderRadius: 16, padding: '5px 12px', display: 'flex', alignItems: 'center', gap: 4, color: authUser.role === 'admin' ? '#e05a5a' : '#c8a96e' }}>
-                {authUser.role === 'admin' ? '🛡 Admin' : '🏪 점주'}
+              <div style={{ fontSize: 11, background: '#141414', border: '1px solid #222', borderRadius: 16, padding: '5px 12px', display: 'flex', alignItems: 'center', gap: 4, color: authUser.role === 'admin' ? '#e05a5a' : authUser.role === 'owner' ? '#c8a96e' : '#6fcf97' }}>
+                {authUser.role === 'admin' ? '🛡 Admin' : authUser.role === 'owner' ? '🏪 점주' : `😊 ${authUser.displayName}`}
               </div>
-            ) : currentUser && (
-              <div onClick={() => setShowNicknamePopup(true)} style={{ fontSize: 11, color: '#888', cursor: 'pointer', background: '#141414', border: '1px solid #222', borderRadius: 16, padding: '5px 12px', display: 'flex', alignItems: 'center', gap: 4 }}>
-                😊 {currentUser.nickname}
-              </div>
+            ) : authChecked && (
+              <button onClick={() => setShowLoginModal(true)} style={{ fontSize: 11, color: '#c8a96e', cursor: 'pointer', background: '#141414', border: '1px solid #c8a96e33', borderRadius: 16, padding: '5px 12px' }}>
+                로그인
+              </button>
             )}
             {/* Lang 토글 */}
             <button onClick={() => setLang(l => l === 'ko' ? 'en' : 'ko')}
@@ -317,7 +313,7 @@ export default function Home() {
                 <span key={l} style={{ position: 'relative', zIndex: 1, width: 28, textAlign: 'center', fontSize: 11, fontWeight: 700, color: lang === l ? '#080808' : '#555', fontFamily: "'Inter',sans-serif" }}>{l.toUpperCase()}</span>
               ))}
             </button>
-            {!authUser && (
+            {(!authUser || authUser.role === 'user') && (
               <button onClick={() => { if (showPostForm) { setShowPostForm(false) } else { setMainItems([]); setSideItems([]); setReview(''); setPhoto(null); setPhotoFile(null); setOptionPanelFor(null); setShowPostForm(true); setTab('feed') } }}
                 style={{ background: showPostForm ? '#c8a96e' : 'transparent', border: '1.5px solid #c8a96e', color: showPostForm ? '#080808' : '#c8a96e', borderRadius: 20, padding: '7px 14px', fontSize: 12, cursor: 'pointer', fontWeight: 700, ...F }}>
                 {showPostForm ? t.cancelBtn : t.shareBtn}
@@ -335,12 +331,20 @@ export default function Home() {
                 {tv === 'feed' ? t.feed : t.stores}
               </button>
             ))}
+            <button onClick={() => setTab('oripa')} style={{ background: 'none', border: 'none', padding: '8px 14px', color: tab === 'oripa' ? '#c8a96e' : '#555', borderBottom: tab === 'oripa' ? '2px solid #c8a96e' : '2px solid transparent', fontSize: 13, cursor: 'pointer', fontWeight: tab === 'oripa' ? 700 : 400, ...F }}>
+              🎴
+            </button>
             <button onClick={() => setTab('manage')} style={{ background: 'none', border: 'none', padding: '8px 14px', color: tab === 'manage' ? '#c8a96e' : '#555', borderBottom: tab === 'manage' ? '2px solid #c8a96e' : '2px solid transparent', fontSize: 13, cursor: 'pointer', fontWeight: tab === 'manage' ? 700 : 400, ...F }}>
               {t.manage}
             </button>
           </div>
         )}
       </div>
+
+      {/* ── ORIPA ── */}
+      {tab === 'oripa' && !showPostForm && (
+        <OripaTab lang={lang} F={F} />
+      )}
 
       {/* ── MANAGE ── */}
       {tab === 'manage' && !showPostForm && (

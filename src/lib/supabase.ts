@@ -5,6 +5,14 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 
 export const supabase = createClient(supabaseUrl, supabaseKey)
 
+// 서버 전용 (API Route에서만 사용) — Service Role Key 필요
+export function createServiceClient() {
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+  return createClient(supabaseUrl, serviceKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  })
+}
+
 // ── 이미지 압축 (최대 1200px, 품질 80%) ──────────────────
 async function compressImage(file: File): Promise<File> {
   return new Promise((resolve) => {

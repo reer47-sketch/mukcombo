@@ -9,6 +9,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ko">
+      <head>
+        <script src="https://js.tosspayments.com/v1/payment" async />
+      </head>
       <body>{children}</body>
     </html>
   )

@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import MenuEditor from '@/components/MenuEditor'
+import OripaAdmin from '@/components/OripaAdmin'
 import { T, type Lang, type Translations } from '@/lib/i18n'
 import type { Store } from '@/types'
 import { CategoryPicker, type FoodCat } from '@/components/CategoryPicker'
@@ -438,7 +439,7 @@ export default function DashboardTab({ lang }: { lang: Lang }) {
   const [adminStores, setAdminStores] = useState<{ id: string; name: string; name_en: string; emoji: string; subscription_status: string; is_premium: boolean; owner_id: string | null }[]>([])
   const [adminPosts, setAdminPosts] = useState<{ id: string; store_id: string; user_name: string; review: string; likes: number; created_at: string }[]>([])
   const [foodCategories, setFoodCategories] = useState<{ id: string; name_ko: string; name_en: string; group_ko: string; group_en: string; group_emoji: string; sort_order: number }[]>([])
-  const [adminTab, setAdminTab] = useState<'overview' | 'stores' | 'posts' | 'users' | 'categories'>('overview')
+  const [adminTab, setAdminTab] = useState<'overview' | 'stores' | 'posts' | 'users' | 'categories' | 'oripa'>('overview')
   const [newCatKo, setNewCatKo] = useState('')
   const [newCatEn, setNewCatEn] = useState('')
   const [newCatGroup, setNewCatGroup] = useState('') // 선택된 기존 그룹 key, '__new__' = 새 그룹
@@ -634,7 +635,7 @@ export default function DashboardTab({ lang }: { lang: Lang }) {
           <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
             {([
               ['overview', '📊 개요'], ['stores', '🏪 가게'],
-              ['posts', '📝 게시글'], ['users', '👥 사용자'], ['categories', '🏷️ 카테고리'],
+              ['posts', '📝 게시글'], ['users', '👥 사용자'], ['categories', '🏷️ 카테고리'], ['oripa', '🎴 오리파'],
             ] as const).map(([k, label]) => (
               <button key={k} onClick={() => setAdminTab(k)}
                 style={{ background: adminTab === k ? '#c8a96e' : '#141414', color: adminTab === k ? '#080808' : '#888', border: 'none', borderRadius: 16, padding: '7px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', ...F }}>
@@ -786,6 +787,8 @@ export default function DashboardTab({ lang }: { lang: Lang }) {
               {stats.users.length === 0 && <div style={{ color: '#444', textAlign: 'center', padding: 40, ...F }}>사용자가 없어요</div>}
             </div>
           )}
+
+          {adminTab === 'oripa' && <OripaAdmin />}
 
           {adminTab === 'categories' && (() => {
             // ── 헬퍼: sort_order 기반 그룹 목록 ──

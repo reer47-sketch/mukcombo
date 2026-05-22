@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>먹콤보 사용 매뉴얼</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap');
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+      background: #ffffff;
+      color: #1a1a1a;
+      font-size: 13px;
+      line-height: 1.7;
+    }
+
+    /* ── 커버 페이지 ── */
+    .cover {
+      width: 100%;
+      height: 100vh;
+      background: linear-gradient(145deg, #0d0d0d 0%, #1a1200 60%, #0d0d0d 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      page-break-after: always;
+      position: relative;
+      overflow: hidden;
+    }
+    .cover::before {
+      content: '';
+      position: absolute;
+      width: 600px; height: 600px;
+      border-radius: 50%;
+      background: radial-gradient(circle, #c8a96e22 0%, transparent 70%);
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+    }
+    .cover-emoji { font-size: 72px; margin-bottom: 24px; }
+    .cover-title {
+      font-size: 42px;
+      font-weight: 900;
+      color: #c8a96e;
+      letter-spacing: -1px;
+      margin-bottom: 8px;
+    }
+    .cover-subtitle {
+      font-size: 15px;
+      color: #666;
+      font-weight: 400;
+      letter-spacing: 2px;
+    }
+    .cover-divider {
+      width: 60px; height: 2px;
+      background: #c8a96e;
+      margin: 28px auto;
+    }
+    .cover-version {
+      font-size: 11px;
+      color: #444;
+      letter-spacing: 1px;
+    }
+
+    /* ── 본문 레이아웃 ── */
+    .page {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 48px 52px;
+    }
+
+    /* ── 목차 ── */
+    .toc-section {
+      margin-bottom: 12px;
+    }
+    .toc-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: #c8a96e;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      margin-bottom: 28px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #e8e0d0;
+    }
+    .toc-item {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      padding: 9px 0;
+      border-bottom: 1px dotted #e0e0e0;
+    }
+    .toc-num {
+      font-size: 11px;
+      color: #c8a96e;
+      font-weight: 700;
+      min-width: 24px;
+    }
+    .toc-label {
+      font-size: 13px;
+      color: #1a1a1a;
+      font-weight: 700;
+      flex: 1;
+    }
+    .toc-sub {
+      padding-left: 32px;
+      padding-top: 4px;
+      padding-bottom: 4px;
+      border-bottom: none;
+    }
+    .toc-sub .toc-label {
+      font-weight: 400;
+      font-size: 12px;
+      color: #555;
+    }
+
+    /* ── 섹션 헤더 ── */
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-top: 48px;
+      margin-bottom: 28px;
+      padding-bottom: 14px;
+      border-bottom: 2px solid #1a1a1a;
+    }
+    .section-num {
+      font-size: 10px;
+      font-weight: 700;
+      color: #fff;
+      background: #c8a96e;
+      border-radius: 6px;
+      padding: 3px 9px;
+      letter-spacing: 1px;
+    }
+    .section-title {
+      font-size: 20px;
+      font-weight: 900;
+      color: #1a1a1a;
+    }
+
+    /* ── 소제목 ── */
+    h3 {
+      font-size: 14px;
+      font-weight: 700;
+      color: #1a1a1a;
+      margin: 28px 0 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    h3::before {
+      content: '';
+      display: inline-block;
+      width: 4px;
+      height: 16px;
+      background: #c8a96e;
+      border-radius: 2px;
+    }
+
+    h4 {
+      font-size: 12px;
+      font-weight: 700;
+      color: #444;
+      margin: 18px 0 8px;
+    }
+
+    /* ── 단락 ── */
+    p {
+      color: #333;
+      margin-bottom: 10px;
+      font-size: 13px;
+    }
+
+    /* ── 표 ── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 14px 0 20px;
+      font-size: 12px;
+    }
+    th {
+      background: #f5f0e8;
+      color: #7a5c20;
+      font-weight: 700;
+      padding: 9px 14px;
+      text-align: left;
+      border-bottom: 2px solid #e0d0b0;
+    }
+    td {
+      padding: 8px 14px;
+      border-bottom: 1px solid #f0ece4;
+      color: #333;
+      vertical-align: top;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:nth-child(even) td { background: #faf8f4; }
+
+    /* ── 리스트 ── */
+    ul, ol {
+      padding-left: 20px;
+      margin: 10px 0 14px;
+      color: #333;
+    }
+    li {
+      margin-bottom: 5px;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    li strong { color: #1a1a1a; }
+
+    /* ── 콜아웃 박스 ── */
+    .callout {
+      background: #fffbf2;
+      border-left: 3px solid #c8a96e;
+      border-radius: 0 8px 8px 0;
+      padding: 12px 16px;
+      margin: 14px 0;
+      font-size: 12px;
+      color: #5a4020;
+    }
+    .callout-warn {
+      background: #fff8f8;
+      border-left-color: #e05a5a;
+      color: #5a1a1a;
+    }
+    .callout strong { font-weight: 700; }
+
+    /* ── 스텝 박스 ── */
+    .steps {
+      counter-reset: step;
+      margin: 14px 0;
+    }
+    .step {
+      display: flex;
+      gap: 14px;
+      margin-bottom: 12px;
+      align-items: flex-start;
+    }
+    .step-num {
+      counter-increment: step;
+      min-width: 26px;
+      height: 26px;
+      background: #1a1a1a;
+      color: #c8a96e;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .step-body { font-size: 13px; color: #333; padding-top: 3px; }
+    .step-body strong { color: #1a1a1a; }
+
+    /* ── 태그/배지 ── */
+    .badge {
+      display: inline-block;
+      background: #f5f0e8;
+      color: #7a5c20;
+      border-radius: 4px;
+      padding: 2px 7px;
+      font-size: 11px;
+      font-weight: 700;
+      margin: 0 2px;
+    }
+    .badge-green {
+      background: #eefaf3;
+      color: #1a6b3a;
+    }
+
+    /* ── 구분선 ── */
+    hr {
+      border: none;
+      border-top: 1px solid #eeebe4;
+      margin: 24px 0;
+    }
+
+    /* ── 페이지 나눔 ── */
+    .page-break { display: none; }
+
+    /* ── 예시 텍스트 ── */
+    .example {
+      background: #f8f8f8;
+      border: 1px solid #e8e8e8;
+      border-radius: 6px;
+      padding: 10px 14px;
+      font-size: 12px;
+      color: #444;
+      margin: 10px 0;
+      font-family: monospace;
+    }
+
+    /* ── 인쇄 설정 ── */
+    @media print {
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════ 커버 ══ -->
+<div class="cover">
+  <div class="cover-emoji">🍜</div>
+  <div class="cover-title">먹콤보</div>
+  <div class="cover-subtitle">MukCombo · 사용 매뉴얼</div>
+  <div class="cover-divider"></div>
+  <div class="cover-version">User Guide · 2025</div>
+</div>
+
+<div class="page">
+
+<!-- ══════════════════════════════════════════ 목차 ══ -->
+<div class="toc-section">
+  <div class="toc-title">목차 · Contents</div>
+
+  <div class="toc-item">
+    <span class="toc-num">01</span>
+    <span class="toc-label">먹콤보란?</span>
+  </div>
+
+  <div class="toc-item">
+    <span class="toc-num">02</span>
+    <span class="toc-label">시작하기</span>
+  </div>
+  <div class="toc-item toc-sub">
+    <span class="toc-num">—</span>
+    <span class="toc-label">닉네임 설정 / 로그인</span>
+  </div>
+  <div class="toc-item toc-sub">
+    <span class="toc-num">—</span>
+    <span class="toc-label">탭 구성</span>
+  </div>
+
+  <div class="toc-item">
+    <span class="toc-num">03</span>
+    <span class="toc-label">피드 — 리뷰 보기 & 작성</span>
+  </div>
+  <div class="toc-item toc-sub">
+    <span class="toc-num">—</span>
+    <span class="toc-label">피드 보기 / 댓글</span>
+  </div>
+  <div class="toc-item toc-sub">
+    <span class="toc-num">—</span>
+    <span class="toc-label">리뷰 작성 4단계</span>
+  </div>
+
+  <div class="toc-item">
+    <span class="toc-num">04</span>
+    <span class="toc-label">먹검색 — 음식점 찾기</span>
+  </div>
+  <div class="toc-item toc-sub">
+    <span class="toc-num">—</span>
+    <span class="toc-label">AI 추천 받기</span>
+  </div>
+  <div class="toc-item toc-sub">
+    <span class="toc-num">—</span>
+    <span class="toc-label">메뉴명으로 검색</span>
+  </div>
+  <div class="toc-item toc-sub">
+    <span class="toc-num">—</span>
+    <span class="toc-label">카테고리 조합 검색</span>
+  </div>
+
+  <div class="toc-item">
+    <span class="toc-num">05</span>
+    <span class="toc-label">점주 — 가게 등록 & 관리</span>
+  </div>
+  <div class="toc-item toc-sub">
+    <span class="toc-num">—</span>
+    <span class="toc-label">로그인 및 권한</span>
+  </div>
+  <div class="toc-item toc-sub">
+    <span class="toc-num">—</span>
+    <span class="toc-label">가게 등록하기</span>
+  </div>
+  <div class="toc-item toc-sub">
+    <span class="toc-num">—</span>
+    <span class="toc-label">메뉴 섹션 & 옵션 설정</span>
+  </div>
+  <div class="toc-item toc-sub">
+    <span class="toc-num">—</span>
+    <span class="toc-label">가게 편집하기</span>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════ 01 ══ -->
+<div class="page-break"></div>
+
+<div class="section-header">
+  <span class="section-num">01</span>
+  <span class="section-title">먹콤보란?</span>
+</div>
+
+<p>
+  <strong>먹콤보(MukCombo)</strong>는 "오늘 뭐 먹지?" 고민을 해결해주는 음식점 검색 & 먹방 기록 앱입니다.
+  AI 추천, 카테고리 조합 검색, 메뉴명 검색으로 근처 음식점을 빠르게 찾고,
+  친구들과 먹은 기록을 피드에 남길 수 있습니다.
+</p>
+
+<table>
+  <tr>
+    <th>주요 기능</th>
+    <th>설명</th>
+  </tr>
+  <tr>
+    <td>🤖 AI 추천</td>
+    <td>인원수·시간대·입맛을 입력하면 AI가 최적의 음식점 3곳 추천</td>
+  </tr>
+  <tr>
+    <td>🔍 먹검색</td>
+    <td>먹고 싶은 메뉴명이나 카테고리 조합으로 음식점 검색</td>
+  </tr>
+  <tr>
+    <td>📸 피드</td>
+    <td>오늘 뭐 먹었는지 사진·메뉴·리뷰 기록 & 공유</td>
+  </tr>
+  <tr>
+    <td>🏪 점주 관리</td>
+    <td>내 가게 등록, 메뉴·가격·옵션 관리</td>
+  </tr>
+</table>
+
+<!-- ══════════════════════════════════════════ 02 ══ -->
+<div class="page-break"></div>
+
+<div class="section-header">
+  <span class="section-num">02</span>
+  <span class="section-title">시작하기</span>
+</div>
+
+<h3>닉네임 설정 (로그인 없이 사용)</h3>
+
+<p>
+  앱을 처음 열면 닉네임 입력 팝업이 나타납니다.
+  닉네임을 입력하면 <strong>로그인 없이도</strong> 리뷰 작성과 댓글을 이용할 수 있습니다.
+</p>
+
+<div class="callout">
+  닉네임은 기기에 저장되며, 언제든지 변경할 수 있습니다.
+</div>
+
+<h3>로그인 (선택사항)</h3>
+
+<p>계정을 만들면 다양한 기기에서 동일한 닉네임으로 이용할 수 있습니다.</p>
+
+<table>
+  <tr>
+    <th>방법</th>
+    <th>설명</th>
+  </tr>
+  <tr>
+    <td><strong>Google 로그인</strong></td>
+    <td>Google 계정으로 빠르게 로그인</td>
+  </tr>
+  <tr>
+    <td><strong>이메일/비밀번호</strong></td>
+    <td>이메일로 회원가입 후 로그인</td>
+  </tr>
+</table>
+
+<h3>탭 구성</h3>
+
+<p>화면 상단의 탭으로 기능을 이동합니다.</p>
+
+<table>
+  <tr>
+    <th>탭</th>
+    <th>기능</th>
+  </tr>
+  <tr>
+    <td><strong>먹검색</strong></td>
+    <td>AI 추천, 카테고리·메뉴명으로 음식점 검색</td>
+  </tr>
+  <tr>
+    <td><strong>피드</strong></td>
+    <td>다른 사람들의 리뷰 보기 & 내 리뷰 작성</td>
+  </tr>
+  <tr>
+    <td><strong>관리</strong></td>
+    <td>점주 로그인 및 가게 등록·편집</td>
+  </tr>
+</table>
+
+<!-- ══════════════════════════════════════════ 03 ══ -->
+<div class="page-break"></div>
+
+<div class="section-header">
+  <span class="section-num">03</span>
+  <span class="section-title">피드 — 리뷰 보기 & 작성</span>
+</div>
+
+<h3>피드 보기</h3>
+
+<p>피드 탭에서 사람들이 남긴 먹방 기록을 스크롤하며 볼 수 있습니다.</p>
+<ul>
+  <li>사진, 먹은 메뉴 조합, 리뷰 텍스트 확인</li>
+  <li><strong>댓글 보기</strong>: 리뷰 하단 댓글 수 버튼 클릭 → 목록 펼침</li>
+  <li><strong>댓글 작성</strong>: 입력란에 텍스트 입력 후 전송</li>
+</ul>
+
+<hr>
+
+<h3>리뷰 작성하기</h3>
+
+<p>피드 화면에서 <strong>"오늘 뭐 먹었어?"</strong> 버튼을 누르면 작성 폼이 열립니다.</p>
+
+<div class="steps">
+
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-body">
+      <strong>음식점 선택</strong><br>
+      검색창에 가게명을 입력하거나 목록에서 가게를 선택합니다.
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-body">
+      <strong>메뉴 선택</strong><br>
+      가게를 선택하면 메뉴 목록이 나타납니다.<br><br>
+      <strong>메인 메뉴</strong>: 먹은 주 메뉴를 클릭 (여러 개 선택 가능).<br>
+      메뉴에 옵션(사이즈, 국물 농도 등)이 있으면 선택지가 나타납니다.<br><br>
+      <strong>사이드 메뉴</strong>: 곁들인 메뉴를 추가합니다 (선택사항).<br><br>
+      메뉴를 선택하면 상단에 자동 문구가 생성됩니다.
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-body">
+      <strong>리뷰 작성</strong><br>
+      사진 업로드(선택사항)와 리뷰 텍스트를 입력합니다.
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">4</div>
+    <div class="step-body">
+      <strong>공유</strong><br>
+      <strong>공유 버튼</strong>을 누르면 피드에 등록됩니다.
+    </div>
+  </div>
+
+</div>
+
+<div class="callout">
+  <strong>자동 생성 문구 예시</strong><br>
+  메뉴를 선택하면 자동으로 문구가 만들어집니다.<br>
+  예: <em>"고르다에서 돈코츠라멘 + 군만두 먹었어요!"</em>
+</div>
+
+<!-- ══════════════════════════════════════════ 04 ══ -->
+<div class="page-break"></div>
+
+<div class="section-header">
+  <span class="section-num">04</span>
+  <span class="section-title">먹검색 — 음식점 찾기</span>
+</div>
+
+<p>먹검색 탭에서는 두 가지 방법으로 음식점을 찾을 수 있습니다.</p>
+
+<h3>방법 1 — AI 추천 받기</h3>
+
+<p><strong>🤖 AI 추천</strong> 버튼을 누르면 챗봇이 세 가지 질문을 통해 최적의 음식점을 추천해줍니다.</p>
+
+<table>
+  <tr>
+    <th>단계</th>
+    <th>질문</th>
+    <th>선택지</th>
+  </tr>
+  <tr>
+    <td>1단계</td>
+    <td>몇 명이서 드세요?</td>
+    <td>혼자 / 2명 / 3~4명 / 5명+</td>
+  </tr>
+  <tr>
+    <td>2단계</td>
+    <td>언제 드세요?</td>
+    <td>점심 / 저녁 / 야식 / 상관없어요</td>
+  </tr>
+  <tr>
+    <td>3단계</td>
+    <td>어떤 음식이 당기세요?</td>
+    <td>카테고리 선택 또는 "아무거나"</td>
+  </tr>
+</table>
+
+<h4>추천 결과 카드</h4>
+<p>조건에 맞는 음식점 <strong>최대 3곳</strong>이 카드 형태로 표시됩니다.</p>
+<ul>
+  <li>가게 이모지, 이름, ❤️ 좋아요 수</li>
+  <li>📍 주소</li>
+  <li>해당 카테고리의 메뉴 & 가격</li>
+  <li>최근 리뷰 한 줄</li>
+</ul>
+<p>카드를 클릭하면 <strong>전체 메뉴 상세 보기</strong> 모달이 열립니다.</p>
+
+<hr>
+
+<h3>방법 2-A — 메뉴명으로 검색</h3>
+
+<p>검색창에 <strong>먹고 싶은 메뉴명</strong>을 2글자 이상 입력합니다.</p>
+<div class="example">예시: 라멘 &nbsp;/&nbsp; 스테이크 &nbsp;/&nbsp; 파스타 &nbsp;/&nbsp; 돈코츠</div>
+<p>잠시 후 해당 메뉴를 파는 음식점 목록이 나타납니다. 일치하는 메뉴명은 강조 표시됩니다.</p>
+
+<hr>
+
+<h3>방법 2-B — 카테고리 조합으로 검색</h3>
+
+<p>여러 음식 카테고리를 조합해 <strong>두 가지 이상을 한 곳에서</strong> 먹을 수 있는 음식점을 찾습니다.</p>
+
+<div class="steps">
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-body">카테고리 버튼을 클릭해 선택합니다 (여러 개 선택 가능).</div>
+  </div>
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-body">선택한 카테고리가 <span class="badge">라멘</span> + <span class="badge">맥주</span> 형태로 표시됩니다.</div>
+  </div>
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-body"><strong>"식당 찾기"</strong> 버튼을 눌러 검색합니다.</div>
+  </div>
+  <div class="step">
+    <div class="step-num">4</div>
+    <div class="step-body">초기화하려면 <strong>"✕ 초기화"</strong> 버튼을 누릅니다.</div>
+  </div>
+</div>
+
+<div class="callout">
+  카테고리는 <strong>일식, 중식, 한식, 이탈리아, 미국/서양</strong> 등 대분류별로 그룹화되어 있습니다.
+</div>
+
+<h4>음식점 상세 보기</h4>
+<p>검색 결과 카드를 클릭하면 상세 모달이 열립니다.</p>
+<table>
+  <tr>
+    <th>항목</th>
+    <th>내용</th>
+  </tr>
+  <tr>
+    <td>가게 정보</td>
+    <td>이름, 이모지, 주소, ❤️ 좋아요 수</td>
+  </tr>
+  <tr>
+    <td>지도 보기</td>
+    <td>링크 클릭 시 지도 앱 연결</td>
+  </tr>
+  <tr>
+    <td>메뉴 목록</td>
+    <td>섹션별로 메뉴명, 영문명, 가격 표시</td>
+  </tr>
+</table>
+
+<!-- ══════════════════════════════════════════ 05 ══ -->
+<div class="page-break"></div>
+
+<div class="section-header">
+  <span class="section-num">05</span>
+  <span class="section-title">점주 — 가게 등록 & 관리</span>
+</div>
+
+<h3>로그인 및 권한</h3>
+
+<p><strong>관리</strong> 탭을 클릭한 뒤 로그인합니다.</p>
+
+<div class="callout callout-warn">
+  ⚠️ 점주 권한은 관리자가 부여합니다. 로그인 후 점주 화면이 보이지 않는다면 운영팀에 문의해 주세요.
+</div>
+
+<hr>
+
+<h3>가게 등록하기</h3>
+
+<p>관리 탭 → <strong>+ 새 가게 등록</strong> 버튼을 클릭합니다.</p>
+
+<h4>① 기본 정보 입력</h4>
+
+<table>
+  <tr>
+    <th>항목</th>
+    <th>설명</th>
+    <th>예시</th>
+  </tr>
+  <tr>
+    <td><strong>이모지</strong></td>
+    <td>가게 대표 이모지 (기본값: 🍜)</td>
+    <td>🍣 🍔 🍕</td>
+  </tr>
+  <tr>
+    <td><strong>가게명 (한글)</strong></td>
+    <td>한국어 가게 이름</td>
+    <td>고르다</td>
+  </tr>
+  <tr>
+    <td><strong>English Name</strong></td>
+    <td>영문 가게 이름</td>
+    <td>Gorda</td>
+  </tr>
+  <tr>
+    <td><strong>주소</strong></td>
+    <td>한국어 주소</td>
+    <td>경기 평택시 …</td>
+  </tr>
+  <tr>
+    <td><strong>Address (EN)</strong></td>
+    <td>영문 주소</td>
+    <td>2F, 12 Pyeongtaek…</td>
+  </tr>
+  <tr>
+    <td><strong>지도 URL</strong></td>
+    <td>네이버·카카오맵 단축 링크</td>
+    <td>https://naver.me/…</td>
+  </tr>
+</table>
+
+<h4>② 메뉴 구성 — 섹션 추가</h4>
+
+<p>
+  메뉴는 <strong>섹션</strong> 단위로 묶어 구성합니다.
+  섹션이란 점주가 직접 이름 붙이는 메뉴 그룹입니다.
+</p>
+
+<div class="callout">
+  섹션 예시: <span class="badge">라멘류</span> <span class="badge">사이드</span> <span class="badge">주류</span> <span class="badge">디저트</span>
+</div>
+
+<div class="steps">
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-body"><strong>+ 섹션 추가</strong> 버튼 클릭</div>
+  </div>
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-body">섹션명 입력 (예: <em>라멘류</em>)</div>
+  </div>
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-body">섹션 내 <strong>+ 메뉴 추가</strong> 버튼으로 메뉴 항목을 추가</div>
+  </div>
+</div>
+
+<h4>③ 메뉴 항목 입력</h4>
+
+<table>
+  <tr>
+    <th>항목</th>
+    <th>설명</th>
+  </tr>
+  <tr>
+    <td><strong>메뉴명</strong></td>
+    <td>한국어 메뉴 이름</td>
+  </tr>
+  <tr>
+    <td><strong>Menu (EN)</strong></td>
+    <td>영문 메뉴 이름</td>
+  </tr>
+  <tr>
+    <td><strong>가격</strong></td>
+    <td>숫자만 입력 (원 단위)</td>
+  </tr>
+  <tr>
+    <td><strong>카테고리</strong></td>
+    <td>검색 노출용 음식 카테고리 연결 (아래 참조)</td>
+  </tr>
+</table>
+
+<h4>④ 카테고리 연결 (검색 노출에 중요)</h4>
+
+<p>카테고리를 연결해야 먹검색에서 해당 메뉴가 검색됩니다.</p>
+
+<table>
+  <tr>
+    <th>방법</th>
+    <th>설명</th>
+  </tr>
+  <tr>
+    <td><strong>자동 추천 수락</strong></td>
+    <td>메뉴명 입력 시 <em>💡 라멘 자동추천</em> 표시 → <strong>✓ 수락</strong> 클릭</td>
+  </tr>
+  <tr>
+    <td><strong>직접 선택</strong></td>
+    <td><strong>직접 선택</strong> 또는 <strong>+ 카테고리 선택</strong> 클릭 → 그룹 필터 또는 검색으로 선택</td>
+  </tr>
+  <tr>
+    <td><strong>변경</strong></td>
+    <td>선택된 카테고리 오른쪽 <strong>✕</strong> 버튼으로 해제 후 재선택</td>
+  </tr>
+</table>
+
+<h4>⑤ 순서 변경 & 삭제</h4>
+
+<ul>
+  <li><strong>▲ ▼ 버튼</strong>: 섹션 또는 메뉴의 위아래 순서를 변경합니다.</li>
+  <li><strong>✕ 버튼</strong>: 섹션 또는 메뉴를 삭제합니다 (최소 1개는 유지됩니다).</li>
+</ul>
+
+<hr>
+
+<h3>옵션 설정 (선택사항)</h3>
+
+<p>메뉴마다 선택 옵션(사이즈, 토핑 등)을 추가할 수 있습니다.</p>
+
+<div class="steps">
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-body">메뉴 하단 <strong>⚙ 옵션 추가</strong> 버튼 클릭</div>
+  </div>
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-body">옵션명 입력 (예: <em>국물 농도</em>) + 영문명 입력</div>
+  </div>
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-body">선택지 텍스트 입력 (예: <em>기본 / 진하게</em>) + 추가 가격 설정 (없으면 0)</div>
+  </div>
+  <div class="step">
+    <div class="step-num">4</div>
+    <div class="step-body"><strong>+ 선택지</strong> 버튼으로 선택지를 더 추가할 수 있습니다.</div>
+  </div>
+</div>
+
+<hr>
+
+<h3>가게 저장</h3>
+
+<p>모든 입력 후 하단 <strong>가게 등록 완료 🎉</strong> 버튼을 클릭합니다.</p>
+
+<hr>
+
+<h3>가게 편집하기</h3>
+
+<p>등록된 가게 목록에서 <strong>✏️ 메뉴 편집</strong> 버튼을 클릭합니다.</p>
+
+<p>편집 화면에서 섹션명, 메뉴, 가격, 옵션을 모두 수정할 수 있습니다.</p>
+
+<table>
+  <tr>
+    <th>버튼</th>
+    <th>기능</th>
+  </tr>
+  <tr>
+    <td><strong>저장</strong></td>
+    <td>변경사항 저장. 완료 시 <span class="badge badge-green">저장됨 ✓</span> 표시</td>
+  </tr>
+  <tr>
+    <td><strong>미리보기</strong></td>
+    <td>실제 고객에게 보이는 형태로 메뉴 확인</td>
+  </tr>
+  <tr>
+    <td><strong>← 목록</strong></td>
+    <td>편집 완료 후 가게 목록으로 돌아가기</td>
+  </tr>
+</table>
+
+<div class="callout">
+  저장 버튼을 누른 뒤 <strong>"저장됨 ✓"</strong> 표시가 나타나면 저장이 완료된 것입니다.
+  확인 후 ← 목록 버튼으로 나가세요.
+</div>
+
+<hr style="margin-top: 48px; border-top: 2px solid #e8e0d0;">
+<p style="text-align:center; font-size: 11px; color: #aaa; margin-top: 20px;">
+  MukCombo User Guide · 문의는 운영팀에 연락해 주세요
+</p>
+
+</div><!-- /page -->
+</body>
+</html>

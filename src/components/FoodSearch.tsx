@@ -4,9 +4,8 @@ import ChatBot from '@/components/ChatBot'
 
 interface FoodCategory { id: string; name_ko: string; name_en: string; group_ko: string; group_en: string; group_emoji: string }
 interface NaverTrendItem { keyword: string; score: number }
-interface GoogleTrendItem { keyword: string; traffic?: string }
 interface YoutubeTrendItem { title: string; videoId: string; thumbnail: string; channelTitle: string }
-interface DailyTrends { naver: NaverTrendItem[]; google: GoogleTrendItem[]; youtube: YoutubeTrendItem[]; fetchedAt?: string }
+interface DailyTrends { naver: NaverTrendItem[]; youtube: YoutubeTrendItem[]; fetchedAt?: string }
 interface MatchedMenu { foodCategoryId: string; storeCategory: string; menus: { nameKo: string; nameEn: string; price: string }[] }
 interface SearchResult {
   store: { id: string; name: string; name_en: string; emoji: string; address: string; address_en: string; map_url: string }
@@ -25,7 +24,7 @@ export default function FoodSearch({ lang, F }: Props) {
   // ── 오늘의 트렌드 ────────────────────────────────────────────
   const [trends, setTrends] = useState<DailyTrends | null>(null)
   const [trendsLoading, setTrendsLoading] = useState(true)
-  const [trendsTab, setTrendsTab] = useState<'naver' | 'google' | 'youtube'>('naver')
+  const [trendsTab, setTrendsTab] = useState<'naver' | 'youtube'>('naver')
 
   useEffect(() => {
     fetch('/api/trends').then(r => r.json()).then(d => {
@@ -136,8 +135,8 @@ export default function FoodSearch({ lang, F }: Props) {
 
         {/* 탭 */}
         <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
-          {(['naver', 'google', 'youtube'] as const).map(tab => {
-            const labels = { naver: '네이버', google: '구글', youtube: '유튜브' }
+          {(['naver', 'youtube'] as const).map(tab => {
+            const labels = { naver: '네이버', youtube: '유튜브' }
             const active = trendsTab === tab
             return (
               <button key={tab} onClick={() => setTrendsTab(tab)} style={{
@@ -173,22 +172,6 @@ export default function FoodSearch({ lang, F }: Props) {
                       {item.score > 1.2 && (
                         <span style={{ fontSize: 9, color: '#e05a5a', fontWeight: 700 }}>↑</span>
                       )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ) : trendsTab === 'google' ? (
-            <div>
-              {!trends?.google?.length ? (
-                <div style={{ fontSize: 11, color: '#444', ...F }}>구글 트렌드 데이터를 가져올 수 없어요</div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  {trends.google.map((item, i) => (
-                    <div key={item.keyword} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: 10, color: i < 3 ? '#c8a96e' : '#444', fontWeight: 700, minWidth: 18 }}>{i + 1}</span>
-                      <span style={{ fontSize: 13, color: '#f0ece4', flex: 1, ...F }}>{item.keyword}</span>
-                      {item.traffic && <span style={{ fontSize: 10, color: '#555', ...F }}>{item.traffic}</span>}
                     </div>
                   ))}
                 </div>

@@ -1,5 +1,5 @@
 /**
- * /api/trends — 오늘의 트렌드 음식 (네이버 DataLab / 구글 / 유튜브)
+ * /api/trends — 오늘의 트렌드 음식 (네이버 DataLab / 유튜브)
  *
  * Supabase 테이블 생성 SQL (한 번만 실행):
  *   create table if not exists daily_trends (
@@ -78,57 +78,6 @@ async function fetchNaverTrends(): Promise<NaverTrendItem[]> {
   }
 
   return results.sort((a, b) => b.score - a.score).slice(0, 12)
-}
-
-// ── 구글 트렌드 (공개 RSS) ────────────────────────────────────────────────
-export interface GoogleTrendItem { keyword: string; traffic?: string }
-
-// 음식 관련 키워드 필터
-const FOOD_HINTS = ['맛집', '먹방', '레시피', '음식', '식당', '카페', '배달', '치킨', '피자', '라멘', '스시', '파스타', '떡볶이', '삼겹살', '국밥', '냉면', '커피', '케이크', '베이커리', '쫄면', '마라탕', '타코', '우동', '소바', '덮밥', '비빔밥', '찌개', '샐러드', '버거']
-
-function isFoodRelated(keyword: string): boolean {
-  const lower = keyword.toLowerCase()
-  return FOOD_HINTS.some(h => lower.includes(h)) ||
-    /[맛먹식밥국죽탕면류빵과자술주|음갈탕찜볶조튀구이]/.test(keyword)
-}
-
-async function fetchGoogleTrends(): Promise<GoogleTrendItem[]> {
-  try {
-    const res = await fetch('https://trends.google.com/trending/rss?geo=KR', {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        'Accept-Language': 'ko-KR,ko;q=0.9',
-      },
-      next: { revalidate: 0 },
-    })
-    const xml = await res.text()
-
-    // RSS 파싱 — CDATA 유무 모두 처리
-    const items: GoogleTrendItem[] = []
-    // <title>...</title> 또는 <title><![CDATA[...]]></title>
-    const titleRe = /<title>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/g
-    const trafficRe = /<ht:approx_traffic>([\s\S]*?)<\/ht:approx_traffic>/g
-    const titles: string[] = []
-    const traffics: string[] = []
-    let m: RegExpExecArray | null
-
-    // 첫 <title>은 채널 제목이므로 skip
-    let first = true
-    while ((m = titleRe.exec(xml)) !== null) {
-      if (first) { first = false; continue }
-      const t = m[1].trim()
-      if (t) titles.push(t)
-    }
-    while ((m = trafficRe.exec(xml)) !== null) traffics.push(m[1].trim())
-
-    for (let i = 0; i < titles.length; i++) {
-      items.push({ keyword: titles[i], traffic: traffics[i] })
-    }
-
-    return items.filter(item => isFoodRelated(item.keyword)).slice(0, 10)
-  } catch {
-    return []
-  }
 }
 
 // ── 유튜브 트렌드 ─────────────────────────────────────────────────────────
@@ -212,13 +161,12 @@ export async function GET() {
   }
 
   // 신규 fetch
-  const [naver, google, youtube] = await Promise.all([
+  const [naver, youtube] = await Promise.all([
     fetchNaverTrends(),
-    fetchGoogleTrends(),
     fetchYoutubeTrends(),
   ])
 
-  const trends = { naver, google, youtube, fetchedAt: now.toISOString() }
+  const trends = { naver, youtube, fetchedAt: now.toISOString() }
 
   // Supabase upsert (date unique)
   await supabase
