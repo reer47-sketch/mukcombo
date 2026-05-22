@@ -44,12 +44,14 @@ export async function GET(req: NextRequest) {
       .eq('event_id', eventId)
       .order('drawn_at')
 
-    // 슬롯 배치 재현 (셔플 알고리즘 동일하게)
-    const slotPrizes: (string | null)[] = []
+    // 슬롯 배치 재현 (셔플 알고리즘 동일하게, 꽝 없음)
+    const sorted = [...(prizes || [])].sort((a, b) => b.rank - a.rank)
+    const lastPrize = sorted[0]
+    const slotPrizes: string[] = []
     for (const prize of (prizes || [])) {
       for (let i = 0; i < prize.quantity; i++) slotPrizes.push(prize.id as string)
     }
-    while (slotPrizes.length < event.total_slots) slotPrizes.push(null)
+    while (slotPrizes.length < event.total_slots) slotPrizes.push(lastPrize.id as string)
     const shuffled = deterministicShuffle(slotPrizes, event.seed)
 
     result.seed = event.seed

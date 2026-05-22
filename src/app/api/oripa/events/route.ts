@@ -86,13 +86,15 @@ export async function POST(req: NextRequest) {
 
   if (prizeErr) return NextResponse.json({ error: prizeErr.message }, { status: 500 })
 
-  // 슬롯 생성: prize들을 quantity만큼 배열에 넣고, 나머지는 꽝(null)
+  // 슬롯 생성: prize들을 quantity만큼 배열에 넣고, 나머지는 최하위 등수로 채움 (꽝 없음)
   // 시드 기반 Fisher-Yates 셔플로 배치
-  const slotPrizes: (string | null)[] = []
+  const sorted = [...createdPrizes!].sort((a, b) => b.rank - a.rank) // 높은 rank(낮은 등수)가 앞
+  const lastPrize = sorted[0] // 최하위 등수 (예: 4등)
+  const slotPrizes: string[] = []
   for (const prize of createdPrizes!) {
     for (let i = 0; i < prize.quantity; i++) slotPrizes.push(prize.id as string)
   }
-  while (slotPrizes.length < totalSlots) slotPrizes.push(null)
+  while (slotPrizes.length < totalSlots) slotPrizes.push(lastPrize.id as string)
 
   // HMAC-SHA256 기반 결정론적 셔플 (seed로 재현 가능)
   const shuffled = deterministicShuffle(slotPrizes, seed)

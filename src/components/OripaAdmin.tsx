@@ -47,6 +47,7 @@ export default function OripaAdmin() {
       { rank: 1, name: '', description: '', images: [] as string[], quantity: 1 },
       { rank: 2, name: '', description: '', images: [] as string[], quantity: 3 },
       { rank: 3, name: '', description: '', images: [] as string[], quantity: 10 },
+      { rank: 4, name: '', description: '', images: [] as string[], quantity: 86 },
     ] as OripaPrize[],
   })
 
@@ -130,16 +131,23 @@ export default function OripaAdmin() {
       toast.error('모든 상품명을 입력해주세요')
       return
     }
-    if (totalPrizeQty > form.total_slots) {
-      toast.error('상품 수량 합계가 총 슬롯 수를 초과해요')
+    const maxRank = Math.max(...form.prizes.map(p => p.rank))
+    const fixedQty = form.prizes.filter(p => p.rank !== maxRank).reduce((s, p) => s + p.quantity, 0)
+    if (fixedQty >= form.total_slots) {
+      toast.error('1~3등 수량 합계가 총 슬롯 수를 초과해요')
       return
     }
+
+    // 최하위 등수 수량을 나머지 슬롯 수로 자동 계산
+    const prizesWithAutoQty = form.prizes.map(p =>
+      p.rank === maxRank ? { ...p, quantity: form.total_slots - fixedQty } : p
+    )
 
     setCreating(true)
     const res = await fetch('/api/oripa/events', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-      body: JSON.stringify({ ...form }),
+      body: JSON.stringify({ ...form, prizes: prizesWithAutoQty }),
     })
     const data = await res.json()
     setCreating(false)
@@ -358,16 +366,31 @@ export default function OripaAdmin() {
                 )}
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px', gap: 8, marginBottom: 8 }}>
-                <div>
-                  <div style={{ fontSize: 10, color: '#555', marginBottom: 4 }}>상품명</div>
-                  <input value={prize.name} onChange={e => setPrize(prize.rank, 'name', e.target.value)} placeholder="상품명 입력" style={inputStyle} />
-                </div>
-                <div>
-                  <div style={{ fontSize: 10, color: '#555', marginBottom: 4 }}>수량</div>
-                  <input type="number" min={1} value={prize.quantity} onChange={e => setPrize(prize.rank, 'quantity', Math.max(1, Number(e.target.value)))} style={inputStyle} />
-                </div>
-              </div>
+              {(() => {
+                const maxRank = Math.max(...form.prizes.map(p => p.rank))
+                const isLast = prize.rank === maxRank
+                const autoQty = isLast ? form.total_slots - form.prizes.filter(p => p.rank !== maxRank).reduce((s, p) => s + p.quantity, 0) : null
+                return (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px', gap: 8, marginBottom: 8 }}>
+                    <div>
+                      <div style={{ fontSize: 10, color: '#555', marginBottom: 4 }}>상품명</div>
+                      <input value={prize.name} onChange={e => setPrize(prize.rank, 'name', e.target.value)} placeholder="상품명 입력" style={inputStyle} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 10, color: '#555', marginBottom: 4 }}>
+                        수량 {isLast && <span style={{ color: '#6fcf97' }}>(자동)</span>}
+                      </div>
+                      {isLast ? (
+                        <div style={{ ...inputStyle, color: '#6fcf97', background: '#0a1a0a', display: 'flex', alignItems: 'center' }}>
+                          {autoQty}
+                        </div>
+                      ) : (
+                        <input type="number" min={1} value={prize.quantity} onChange={e => setPrize(prize.rank, 'quantity', Math.max(1, Number(e.target.value)))} style={inputStyle} />
+                      )}
+                    </div>
+                  </div>
+                )
+              })()}
 
               <div style={{ marginBottom: 8 }}>
                 <div style={{ fontSize: 10, color: '#555', marginBottom: 4 }}>상품 설명</div>

@@ -63,9 +63,15 @@ function OripaCard({ onDraw, disabled }: { onDraw: () => Promise<DrawResult | nu
     }
   }
 
-  const isWin = result?.prize != null
-  const prize = result?.prize
+  const prize = result?.prize ?? null
   const images = prize?.images || []
+
+  const rankColor = (rank: number) => {
+    if (rank === 1) return '#f59e0b'
+    if (rank === 2) return '#94a3b8'
+    if (rank === 3) return '#cd7c2f'
+    return '#6fcf97'
+  }
 
   return (
     <div
@@ -105,27 +111,27 @@ function OripaCard({ onDraw, disabled }: { onDraw: () => Promise<DrawResult | nu
           position: 'absolute', inset: 0, backfaceVisibility: 'hidden',
           transform: 'rotateY(180deg)',
           borderRadius: 16,
-          border: `2px solid ${isWin ? (prize!.rank === 1 ? '#f59e0b' : prize!.rank === 2 ? '#94a3b8' : '#cd7c2f') : '#2a2a2a'}`,
-          background: isWin ? 'linear-gradient(135deg, #1a120a 0%, #2a1f0a 100%)' : '#0d0d0d',
+          border: `2px solid ${prize ? rankColor(prize.rank) + '88' : '#1e1e1e'}`,
+          background: prize ? 'linear-gradient(135deg, #1a120a 0%, #2a1f0a 100%)' : '#0d0d0d',
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
           overflow: 'hidden', padding: 12,
         }}>
-          {isWin ? (
+          {prize ? (
             <>
               {/* 등수 뱃지 */}
               <div style={{
                 position: 'absolute', top: 10, right: 10,
-                background: prize!.rank === 1 ? '#f59e0b' : prize!.rank === 2 ? '#94a3b8' : '#cd7c2f',
+                background: rankColor(prize.rank),
                 color: '#080808', borderRadius: 20, padding: '2px 8px', fontSize: 10, fontWeight: 900,
               }}>
-                {prize!.rank}등
+                {prize.rank}등
               </div>
               {/* 이미지 */}
               {images.length > 0 ? (
                 <div style={{ width: '100%', flex: 1, position: 'relative', marginBottom: 8 }}>
                   <img
                     src={images[imgIdx]}
-                    alt={prize!.name}
+                    alt={prize.name}
                     style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 8 }}
                   />
                   {images.length > 1 && (
@@ -143,17 +149,13 @@ function OripaCard({ onDraw, disabled }: { onDraw: () => Promise<DrawResult | nu
               ) : (
                 <div style={{ fontSize: 40, marginBottom: 8 }}>🎁</div>
               )}
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#f0ece4', textAlign: 'center', lineHeight: 1.3 }}>{prize!.name}</div>
-              {prize!.description && (
-                <div style={{ fontSize: 10, color: '#888', textAlign: 'center', marginTop: 4, lineHeight: 1.4 }}>{prize!.description}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#f0ece4', textAlign: 'center', lineHeight: 1.3 }}>{prize.name}</div>
+              {prize.description && (
+                <div style={{ fontSize: 10, color: '#888', textAlign: 'center', marginTop: 4, lineHeight: 1.4 }}>{prize.description}</div>
               )}
             </>
           ) : (
-            <>
-              <div style={{ fontSize: 40 }}>💨</div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: '#444', marginTop: 8 }}>꽝</div>
-              <div style={{ fontSize: 10, color: '#333', marginTop: 4 }}>다음엔 당첨!</div>
-            </>
+            <div style={{ fontSize: 12, color: '#444' }}>...</div>
           )}
         </div>
       </div>
@@ -461,12 +463,14 @@ export default function OripaTab({ lang, F }: Props) {
           <div style={{ marginBottom: 16 }}>
             <div style={{ fontSize: 11, color: '#555', letterSpacing: 2, fontWeight: 700, marginBottom: 10, ...F }}>PRIZES</div>
             <div style={{ display: 'flex', gap: 8, overflowX: 'auto', scrollbarWidth: 'none', paddingBottom: 4 }}>
-              {[...activeEvent.oripa_prizes].sort((a, b) => a.rank - b.rank).map(prize => (
+              {[...activeEvent.oripa_prizes].sort((a, b) => a.rank - b.rank).map(prize => {
+                const rc = prize.rank === 1 ? '#f59e0b' : prize.rank === 2 ? '#94a3b8' : prize.rank === 3 ? '#cd7c2f' : '#6fcf97'
+                return (
                 <div
                   key={prize.id}
                   style={{
                     flexShrink: 0, width: 100, background: '#0d0d0d',
-                    border: `1px solid ${prize.rank === 1 ? '#f59e0b33' : prize.rank === 2 ? '#94a3b833' : '#cd7c2f33'}`,
+                    border: `1px solid ${rc}33`,
                     borderRadius: 12, padding: '10px 8px', textAlign: 'center',
                   }}
                 >
@@ -475,11 +479,11 @@ export default function OripaTab({ lang, F }: Props) {
                   ) : (
                     <div style={{ fontSize: 28, marginBottom: 6 }}>🎁</div>
                   )}
-                  <div style={{ fontSize: 9, fontWeight: 900, color: prize.rank === 1 ? '#f59e0b' : prize.rank === 2 ? '#94a3b8' : '#cd7c2f', marginBottom: 3 }}>{prize.rank}등</div>
+                  <div style={{ fontSize: 9, fontWeight: 900, color: rc, marginBottom: 3 }}>{prize.rank}등</div>
                   <div style={{ fontSize: 11, fontWeight: 700, color: '#f0ece4', lineHeight: 1.3, ...F }}>{prize.name}</div>
                   <div style={{ fontSize: 9, color: '#555', marginTop: 3, ...F }}>×{prize.quantity}</div>
                 </div>
-              ))}
+              )})}
             </div>
           </div>
 
