@@ -263,6 +263,7 @@ export default function OripaTab({ lang, F }: Props) {
   const [tokenBalance, setTokenBalance] = useState(0)
   const [accessToken, setAccessToken] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
+  const [isAdmin, setIsAdmin] = useState(false)
   const [showShop, setShowShop] = useState(false)
   const [packages, setPackages] = useState<TokenPackage[]>([])
   const [loading, setLoading] = useState(true)
@@ -276,11 +277,14 @@ export default function OripaTab({ lang, F }: Props) {
       if (session) {
         setAccessToken(session.access_token)
         setUserId(session.user.id)
-        const tRes = await fetch('/api/tokens', {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        })
+        const [tRes, roleRes] = await Promise.all([
+          fetch('/api/tokens', { headers: { Authorization: `Bearer ${session.access_token}` } }),
+          fetch('/api/auth/role', { headers: { Authorization: `Bearer ${session.access_token}` } }),
+        ])
         const { balance } = await tRes.json()
+        const { role } = await roleRes.json()
         setTokenBalance(balance)
+        setIsAdmin(role === 'admin')
       }
 
       const [evRes, pkgRes] = await Promise.all([
@@ -383,14 +387,32 @@ export default function OripaTab({ lang, F }: Props) {
           <div style={{ fontSize: 11, color: '#555', marginTop: 2, ...F }}>랜덤 뽑기 이벤트</div>
         </div>
         {userId ? (
-          <button
-            onClick={() => setShowShop(true)}
-            style={{ background: '#141414', border: '1px solid #c8a96e33', borderRadius: 20, padding: '7px 14px', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}
-          >
-            <span style={{ fontSize: 14 }}>🪙</span>
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#c8a96e', ...F }}>{tokenBalance}</span>
-            <span style={{ fontSize: 11, color: '#444', ...F }}>충전</span>
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {isAdmin && (
+              <button
+                onClick={async () => {
+                  const res = await fetch('/api/tokens', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+                    body: JSON.stringify({ amount: 10 }),
+                  })
+                  const { balance } = await res.json()
+                  if (balance != null) { setTokenBalance(balance); toast.success('테스트 토큰 10개 지급!') }
+                }}
+                style={{ fontSize: 10, background: '#1a1a2e', border: '1px solid #333', borderRadius: 12, padding: '4px 8px', color: '#888', cursor: 'pointer' }}
+              >
+                +10 테스트
+              </button>
+            )}
+            <button
+              onClick={() => setShowShop(true)}
+              style={{ background: '#141414', border: '1px solid #c8a96e33', borderRadius: 20, padding: '7px 14px', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}
+            >
+              <span style={{ fontSize: 14 }}>🪙</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#c8a96e', ...F }}>{tokenBalance}</span>
+              <span style={{ fontSize: 11, color: '#444', ...F }}>충전</span>
+            </button>
+          </div>
         ) : (
           <div style={{ fontSize: 11, color: '#555', ...F }}>로그인 후 이용 가능</div>
         )}
