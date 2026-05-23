@@ -63,6 +63,16 @@ export default function OripaAdmin() {
 
   const fileRefs = useRef<{ [key: number]: HTMLInputElement | null }>({})
 
+  // UTC ISO → datetime-local 입력값(로컬 시간)
+  const isoToLocal = (utcStr: string) => {
+    if (!utcStr) return ''
+    const d = new Date(utcStr)
+    const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000)
+    return local.toISOString().slice(0, 16)
+  }
+  // datetime-local 입력값(로컬 시간) → UTC ISO
+  const localToISO = (localStr: string) => localStr ? new Date(localStr).toISOString() : ''
+
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data }) => {
       const token = data.session?.access_token || null
@@ -316,11 +326,11 @@ export default function OripaAdmin() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
               <div>
                 <div style={{ fontSize: 11, color: '#555', marginBottom: 6 }}>시작일</div>
-                <input type="datetime-local" value={editingEvent.start_date.slice(0, 16)} onChange={e => setEditingEvent({ ...editingEvent, start_date: e.target.value })} style={inputStyle} />
+                <input type="datetime-local" value={isoToLocal(editingEvent.start_date)} onChange={e => setEditingEvent({ ...editingEvent, start_date: localToISO(e.target.value) })} style={inputStyle} />
               </div>
               <div>
                 <div style={{ fontSize: 11, color: '#555', marginBottom: 6 }}>종료일</div>
-                <input type="datetime-local" value={editingEvent.end_date.slice(0, 16)} onChange={e => setEditingEvent({ ...editingEvent, end_date: e.target.value })} style={inputStyle} />
+                <input type="datetime-local" value={isoToLocal(editingEvent.end_date)} onChange={e => setEditingEvent({ ...editingEvent, end_date: localToISO(e.target.value) })} style={inputStyle} />
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
@@ -348,11 +358,11 @@ export default function OripaAdmin() {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
           <div>
             <div style={{ fontSize: 11, color: '#555', marginBottom: 6 }}>시작일시</div>
-            <input type="datetime-local" value={form.start_date} onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))} style={inputStyle} />
+            <input type="datetime-local" value={isoToLocal(form.start_date)} onChange={e => setForm(f => ({ ...f, start_date: localToISO(e.target.value) }))} style={inputStyle} />
           </div>
           <div>
             <div style={{ fontSize: 11, color: '#555', marginBottom: 6 }}>종료일시</div>
-            <input type="datetime-local" value={form.end_date} onChange={e => setForm(f => ({ ...f, end_date: e.target.value }))} style={inputStyle} />
+            <input type="datetime-local" value={isoToLocal(form.end_date)} onChange={e => setForm(f => ({ ...f, end_date: localToISO(e.target.value) }))} style={inputStyle} />
           </div>
         </div>
 
