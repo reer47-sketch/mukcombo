@@ -332,7 +332,7 @@ export default function Home() {
               </button>
             ))}
             <button onClick={() => setTab('oripa')} style={{ background: 'none', border: 'none', padding: '8px 14px', color: tab === 'oripa' ? '#c8a96e' : '#555', borderBottom: tab === 'oripa' ? '2px solid #c8a96e' : '2px solid transparent', fontSize: 13, cursor: 'pointer', fontWeight: tab === 'oripa' ? 700 : 400, ...F }}>
-              🎴
+              오리파
             </button>
             <button onClick={() => setTab('manage')} style={{ background: 'none', border: 'none', padding: '8px 14px', color: tab === 'manage' ? '#c8a96e' : '#555', borderBottom: tab === 'manage' ? '2px solid #c8a96e' : '2px solid transparent', fontSize: 13, cursor: 'pointer', fontWeight: tab === 'manage' ? 700 : 400, ...F }}>
               {t.manage}
@@ -341,10 +341,10 @@ export default function Home() {
         )}
       </div>
 
-      {/* ── ORIPA ── */}
-      {tab === 'oripa' && !showPostForm && (
+      {/* ── ORIPA ── always mounted to preserve draw state */}
+      <div style={{ display: tab === 'oripa' && !showPostForm ? 'block' : 'none' }}>
         <OripaTab lang={lang} F={F} />
-      )}
+      </div>
 
       {/* ── MANAGE ── */}
       {tab === 'manage' && !showPostForm && (

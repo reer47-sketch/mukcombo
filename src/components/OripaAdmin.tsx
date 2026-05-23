@@ -12,6 +12,14 @@ interface OripaPrize {
   quantity: number
 }
 
+interface TokenPackage {
+  id: string
+  tokens: number
+  price: number
+  label: string
+  sort_order: number
+}
+
 interface OripaEvent {
   id: string
   title: string
@@ -35,6 +43,8 @@ export default function OripaAdmin() {
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [editingEvent, setEditingEvent] = useState<OripaEvent | null>(null)
+  const [packages, setPackages] = useState<TokenPackage[]>([])
+  const [savingPkgs, setSavingPkgs] = useState(false)
 
   // 이벤트 생성 폼
   const [form, setForm] = useState({
@@ -58,9 +68,25 @@ export default function OripaAdmin() {
       const token = data.session?.access_token || null
       setAccessToken(token)
       if (token) await loadEvents(token)
+      const pkgRes = await fetch('/api/payments/prepare')
+      const pkgData = await pkgRes.json()
+      if (Array.isArray(pkgData)) setPackages(pkgData)
       setLoading(false)
     })
   }, [])
+
+  const handleSavePackages = async () => {
+    if (!accessToken) return
+    setSavingPkgs(true)
+    const res = await fetch('/api/payments/prepare', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify(packages),
+    })
+    setSavingPkgs(false)
+    if (res.ok) toast.success('패키지 가격 저장 완료!')
+    else toast.error('저장 실패')
+  }
 
   const loadEvents = async (token: string) => {
     const res = await fetch('/api/oripa/events', {
@@ -437,6 +463,44 @@ export default function OripaAdmin() {
           style={{ width: '100%', padding: '13px', background: '#c8a96e', color: '#080808', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: creating ? 'wait' : 'pointer', marginTop: 8 }}
         >
           {creating ? '생성 중...' : '🎴 이벤트 생성'}
+        </button>
+      </div>
+
+      {/* 토큰 패키지 가격 설정 */}
+      <div style={{ borderTop: '1px solid #1e1e1e', paddingTop: 20, marginTop: 8 }}>
+        <div style={{ fontSize: 12, color: '#c8a96e', fontWeight: 700, letterSpacing: 2, marginBottom: 16 }}>TOKEN PACKAGES</div>
+        {packages.map((pkg, i) => (
+          <div key={pkg.id} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 10, alignItems: 'flex-end' }}>
+            <div>
+              <div style={{ fontSize: 10, color: '#555', marginBottom: 4 }}>패키지 ({pkg.tokens}개)</div>
+              <input
+                value={pkg.label}
+                onChange={e => setPackages(pkgs => pkgs.map((p, j) => j === i ? { ...p, label: e.target.value } : p))}
+                placeholder="라벨"
+                style={inputStyle}
+              />
+            </div>
+            <div>
+              <div style={{ fontSize: 10, color: '#555', marginBottom: 4 }}>가격 (원)</div>
+              <input
+                type="number"
+                min={0}
+                value={pkg.price}
+                onChange={e => setPackages(pkgs => pkgs.map((p, j) => j === i ? { ...p, price: Number(e.target.value) } : p))}
+                style={inputStyle}
+              />
+            </div>
+            <div style={{ fontSize: 11, color: '#555', paddingBottom: 10 }}>
+              = {pkg.tokens > 0 ? Math.round(pkg.price / pkg.tokens).toLocaleString() : '-'}원/개
+            </div>
+          </div>
+        ))}
+        <button
+          onClick={handleSavePackages}
+          disabled={savingPkgs}
+          style={{ width: '100%', padding: '10px', background: '#0a1a2a', color: '#6fcf97', border: '1px solid #1a3a2a', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: savingPkgs ? 'wait' : 'pointer', marginTop: 4 }}
+        >
+          {savingPkgs ? '저장 중...' : '가격 저장'}
         </button>
       </div>
     </div>
